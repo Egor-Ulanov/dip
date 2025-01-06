@@ -1,4 +1,5 @@
 __pycache__/
 *.pyc
 .env
+venv/
 dipl-12202-firebase-adminsdk-dn0om-3030a99552.json
