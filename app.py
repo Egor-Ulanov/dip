@@ -6,14 +6,19 @@ from bs4 import BeautifulSoup
 import requests
 import re
 import os
+import json
 
 # Инициализация Firebase
-cred = credentials.Certificate("./dipl-12202-firebase-adminsdk-dn0om-3030a99552.json")
+# Загрузка конфигурации из переменной окружения
+firebase_config = os.getenv("FIREBASE_CONFIG")
+credentials_info = json.loads(firebase_config)
+cred = credentials.Certificate(credentials_info)
+
 initialize_app(cred)
 db = firestore.client()
 
 # Токен API Hugging Face
-HF_API_TOKEN = "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"
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
 app = Flask(__name__)
 CORS(app)
