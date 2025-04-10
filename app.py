@@ -201,6 +201,68 @@ def check_url():
         print(f"Ошибка при запросе URL: {e}")
         return jsonify({'error': f"Ошибка при запросе URL: {str(e)}"}), 500
 
+@app.route('/telegram-webhook', methods=['POST'])
+def telegram_webhook():
+    try:
+        data = request.get_json()
+        message = data.get('message')
+        if not message:
+            return jsonify({"status": "no message"}), 200
+
+        chat_id = message['chat']['id']
+        user_text = message.get('text', '')
+        username = message['from'].get('username', 'неизвестный пользователь')
+
+        print(f"[Telegram] {username} написал: {user_text}")
+
+        # Проверяем токсичность текста
+        sentences = re.split(r'(?<=[.!?])\s+', user_text)
+        is_safe = True
+        violations = []
+        results = []
+
+        for sentence in sentences:
+            hf_result = query_huggingface_api(sentence)
+            if not isinstance(hf_result, list) or not all(isinstance(pred, dict) for pred in hf_result):
+                hf_result = [{"label": "error", "score": 0.0}]
+            is_toxic = any(pred["label"] == "toxic" and pred["score"] > 0.5 for pred in hf_result)
+            if is_toxic:
+                is_safe = False
+                violations.append(sentence)
+
+            results.append({
+                "sentence": sentence,
+                "is_toxic": is_toxic,
+                "predictions": hf_result
+            })
+
+        # Сохраняем в Firestore
+        db.collection('checks').add({
+            'text': user_text,
+            'email': f"telegram:{username}",
+            'result': {
+                "is_safe": is_safe,
+                "violations": violations,
+                "results": results
+            },
+            'date': datetime.now()
+        })
+
+        # Ответ в Telegram (если нужно)
+        response_text = "✅ Сообщение безопасное" if is_safe else "⚠️ Обнаружена токсичность"
+        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        telegram_api_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+
+        requests.post(telegram_api_url, json={
+            "chat_id": chat_id,
+            "text": response_text
+        })
+
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        print(f"Ошибка в webhook: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
