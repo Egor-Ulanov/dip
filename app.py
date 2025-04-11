@@ -206,10 +206,15 @@ def check_url():
         print(f"Ошибка при запросе URL: {e}")
         return jsonify({'error': f"Ошибка при запросе URL: {str(e)}"}), 500
 
+@app.route('/telegram-webhook', methods=['GET'])
+def test_webhook():
+    return jsonify({"status": "webhook жив!"})
+
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
     try:
         data = request.get_json()
+        print("[Telegram]", data)  # Просто для отладки
         message = data.get('message')
         if not message:
             return jsonify({"status": "no message"}), 200
