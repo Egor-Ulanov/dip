@@ -55,6 +55,11 @@ def query_huggingface_api(text):
         return [{"label": "error", "score": 0.0}]  # Возвращаем заглушку
 
 
+@app.route('/', methods=['POST', 'GET'])
+def home():
+    print("[DEBUG] Главная страница: что-то пришло!")
+    print(request.data)
+    return jsonify({"msg": "Hello from root"}), 200
 
 # Обработка текста и выделение токсичных предложений
 @app.route('/check', methods=['POST'])
