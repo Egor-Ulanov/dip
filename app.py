@@ -14,6 +14,8 @@ firebase_config = os.getenv("FIREBASE_CONFIG")
 credentials_info = json.loads(firebase_config)
 cred = credentials.Certificate(credentials_info)
 
+print("Бот токен:",os.getenv("TELEGRAM_BOT_TOKEN"))
+
 initialize_app(cred)
 db = firestore.client()
 
