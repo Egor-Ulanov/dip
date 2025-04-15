@@ -223,7 +223,18 @@ def telegram_webhook():
 
         chat_id = message['chat']['id']
         user_text = message.get('text', '')
-        username = message['from'].get('username', 'неизвестный пользователь')
+        from_user = message['from']
+        username = from_user.get('username')
+
+        if not username:
+            first_name = from_user.get('first_name', '')
+            last_name = from_user.get('last_name', '')
+            user_id = from_user.get('id')
+            
+            # Собираем красивое имя: Егор_Уланов_12345678
+            username = f"{first_name}_{last_name}_{user_id}".strip("_")
+
+        email = f"telegram:{username}"
 
         print(f"[Telegram] {username} написал: {user_text}")
 
