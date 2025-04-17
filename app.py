@@ -14,7 +14,7 @@ firebase_config = os.getenv("FIREBASE_CONFIG")
 credentials_info = json.loads(firebase_config)
 cred = credentials.Certificate(credentials_info)
 
-print("Бот токен:",os.getenv("TELEGRAM_BOT_TOKEN"))
+# print("Бот токен:",os.getenv("TELEGRAM_BOT_TOKEN"))
 
 initialize_app(cred)
 db = firestore.client()
@@ -282,7 +282,7 @@ def telegram_webhook():
 
         # --- Сохраняем в groups/<chat_id>/checks/ ---
         try:
-            db.collection('groups').document(str(chat_id)).collection('checks').add({
+            db.collection('groups').document(str(chat_id)).collection('checks').document().set({
                 'text': user_text,
                 'result': {
                     'is_safe': is_safe,
