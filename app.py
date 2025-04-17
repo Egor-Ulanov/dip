@@ -211,6 +211,7 @@ def check_url():
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
     try:
+        print("Проверка")
         data = request.get_json()
         print("[Telegram]", data)  # отладка
         message = data.get('message')
