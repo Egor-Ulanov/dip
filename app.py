@@ -263,7 +263,15 @@ def telegram_webhook():
         is_safe = True
         violations = []
         results = []
-
+        print("📥 Данные для записи:", {
+            'text': user_text,
+            'result': {
+                'is_safe': is_safe,
+                'violations': violations,
+                'results': results
+            },
+            'date': datetime.now()
+        })
         for sentence in sentences:
             hf_result = query_huggingface_api(sentence)
             if not isinstance(hf_result, list) or not all(isinstance(pred, dict) for pred in hf_result):
