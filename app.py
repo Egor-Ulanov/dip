@@ -281,17 +281,16 @@ def telegram_webhook():
             })
 
         # --- Сохраняем в groups/<chat_id>/checks/ ---
-        db.collection('groups').document(group_id).collection('checks').add({
+        db.collection('groups').document(str(chat_id)).collection('checks').add({
             'text': user_text,
-            'author': author,
             'result': {
-                "is_safe": is_safe,
-                "violations": violations,
-                "results": results
+                'is_safe': is_safe,
+                'violations': violations,
+                'results': results
             },
             'date': datetime.now()
         })
-
+        print(f"Записываю в groups/{chat_id}/checks")
         print(f"[Telegram] Результат сохранён. Токсичность: {not is_safe}")
 
         # ---  (в будущем) отправка уведомления по email ---
