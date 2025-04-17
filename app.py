@@ -228,9 +228,25 @@ def telegram_webhook():
         author = f"{first_name}_{last_name}_{user_id}".strip("_")
 
         user_text = message.get('text', '')
+
+        if user_text.strip() == "/getid":
+            chat_id = message['chat']['id']
+            chat_title = message['chat'].get('title', '')
+            text = f"ID группы: `{chat_id}`\nНазвание: {chat_title}"
+            telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
+            telegram_api_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+
+            requests.post(telegram_api_url, json={
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": "Markdown"
+            })
+
+            return jsonify({"status": "sent chat id"}), 200
+        
         print(f"[Telegram] {author} написал: {user_text}")
 
-        # --- 1️⃣ Проверяем: есть ли эта группа в базе (по group_id) ---
+        # --- 1️ Проверяем: есть ли эта группа в базе (по group_id) ---
         group_doc = db.collection('groups').document(group_id).get()
 
         if not group_doc.exists:
@@ -242,7 +258,7 @@ def telegram_webhook():
             print(f"[Telegram] У группы нет admin_email.")
             return jsonify({"status": "no admin email"}), 200
 
-        # --- 2️⃣ Проверка текста через Hugging Face ---
+        # --- 2️ Проверка текста через Hugging Face ---
         sentences = re.split(r'(?<=[.!?])\s+', user_text)
         is_safe = True
         violations = []
@@ -264,7 +280,7 @@ def telegram_webhook():
                 "predictions": hf_result
             })
 
-        # --- 3️⃣ Сохраняем в groups/<chat_id>/checks/ ---
+        # --- Сохраняем в groups/<chat_id>/checks/ ---
         db.collection('groups').document(group_id).collection('checks').add({
             'text': user_text,
             'author': author,
@@ -278,7 +294,7 @@ def telegram_webhook():
 
         print(f"[Telegram] Результат сохранён. Токсичность: {not is_safe}")
 
-        # --- 4️⃣ (в будущем) отправка уведомления по email ---
+        # ---  (в будущем) отправка уведомления по email ---
         # Здесь будет отправка письма через SMTP или API
 
         return jsonify({"status": "ok"}), 200
