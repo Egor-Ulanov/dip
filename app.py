@@ -279,7 +279,7 @@ def telegram_webhook():
                 "is_toxic": is_toxic,
                 "predictions": hf_result
             })
-
+        print("TRYING TO WRITE TO FIRESTORE")
         # --- Сохраняем в groups/<chat_id>/checks/ ---
         try:
             db.collection('groups').document(str(chat_id)).collection('checks').document().set({
