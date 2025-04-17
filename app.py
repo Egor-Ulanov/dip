@@ -208,37 +208,41 @@ def check_url():
         print(f"Ошибка при запросе URL: {e}")
         return jsonify({'error': f"Ошибка при запросе URL: {str(e)}"}), 500
 
-@app.route('/telegram-webhook', methods=['GET'])
-def test_webhook():
-    return jsonify({"status": "webhook жив!"})
-
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
     try:
         data = request.get_json()
-        print("[Telegram]", data)  # Просто для отладки
+        print("[Telegram]", data)  # отладка
         message = data.get('message')
         if not message:
             return jsonify({"status": "no message"}), 200
 
-        chat_id = message['chat']['id']
-        user_text = message.get('text', '')
+        chat = message['chat']
+        group_id = str(chat['id'])  # важно — ID группы (строкой)
+        group_title = chat.get('title', 'Без названия')
+
         from_user = message['from']
-        username = from_user.get('username')
+        first_name = from_user.get('first_name', '')
+        last_name = from_user.get('last_name', '')
+        user_id = from_user.get('id')
+        author = f"{first_name}_{last_name}_{user_id}".strip("_")
 
-        if not username:
-            first_name = from_user.get('first_name', '')
-            last_name = from_user.get('last_name', '')
-            user_id = from_user.get('id')
-            
-            # Собираем красивое имя: Егор_Уланов_12345678
-            username = f"{first_name}_{last_name}_{user_id}".strip("_")
+        user_text = message.get('text', '')
+        print(f"[Telegram] {author} написал: {user_text}")
 
-        email = f"telegram:{username}"
+        # --- 1️⃣ Проверяем: есть ли эта группа в базе (по group_id) ---
+        group_doc = db.collection('groups').document(group_id).get()
 
-        print(f"[Telegram] {username} написал: {user_text}")
+        if not group_doc.exists:
+            print(f"[Telegram] Группа {group_title} ещё не зарегистрирована — не сохраняем.")
+            return jsonify({"status": "group not registered"}), 200
 
-        # Проверяем токсичность текста
+        admin_email = group_doc.to_dict().get('admin_email')
+        if not admin_email:
+            print(f"[Telegram] У группы нет admin_email.")
+            return jsonify({"status": "no admin email"}), 200
+
+        # --- 2️⃣ Проверка текста через Hugging Face ---
         sentences = re.split(r'(?<=[.!?])\s+', user_text)
         is_safe = True
         violations = []
@@ -248,6 +252,7 @@ def telegram_webhook():
             hf_result = query_huggingface_api(sentence)
             if not isinstance(hf_result, list) or not all(isinstance(pred, dict) for pred in hf_result):
                 hf_result = [{"label": "error", "score": 0.0}]
+
             is_toxic = any(pred["label"] == "toxic" and pred["score"] > 0.5 for pred in hf_result)
             if is_toxic:
                 is_safe = False
@@ -259,10 +264,10 @@ def telegram_webhook():
                 "predictions": hf_result
             })
 
-        # Сохраняем в Firestore
-        db.collection('checks').add({
+        # --- 3️⃣ Сохраняем в groups/<chat_id>/checks/ ---
+        db.collection('groups').document(group_id).collection('checks').add({
             'text': user_text,
-            'email': f"telegram:{username}",
+            'author': author,
             'result': {
                 "is_safe": is_safe,
                 "violations": violations,
@@ -271,17 +276,13 @@ def telegram_webhook():
             'date': datetime.now()
         })
 
-        # Ответ в Telegram (если нужно)
-        response_text = "✅ Сообщение безопасное" if is_safe else "⚠️ Обнаружена токсичность"
-        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        telegram_api_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+        print(f"[Telegram] Результат сохранён. Токсичность: {not is_safe}")
 
-        requests.post(telegram_api_url, json={
-            "chat_id": chat_id,
-            "text": response_text
-        })
+        # --- 4️⃣ (в будущем) отправка уведомления по email ---
+        # Здесь будет отправка письма через SMTP или API
 
         return jsonify({"status": "ok"}), 200
+
     except Exception as e:
         print(f"Ошибка в webhook: {str(e)}")
         return jsonify({"error": str(e)}), 500
