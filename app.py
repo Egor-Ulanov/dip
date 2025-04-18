@@ -56,8 +56,11 @@ def query_huggingface_api(text):
         print(f"Ошибка API Hugging Face: {response.text}")
         return [{"label": "error", "score": 0.0}]  # Возвращаем заглушку
 
-
+@app.before_request
+def before_request_log():
+    print(f" NEW REQUEST: {request.method} {request.path}")
 @app.route('/', methods=['POST', 'GET'])
+
 def home():
     print("[DEBUG] Главная страница: что-то пришло!")
     print(request.data)
