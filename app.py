@@ -214,7 +214,7 @@ def check_url():
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
     try:
-        print("Проверка")
+        print(" webhook получен!")
         data = request.get_json()
         print("[Telegram]", data)  # отладка
         message = data.get('message')
@@ -321,4 +321,5 @@ def telegram_webhook():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    print(f"✅ Starting server on port: {port}")
     app.run(host='0.0.0.0', port=port)
