@@ -306,7 +306,8 @@ def telegram_webhook():
                 "is_toxic": is_toxic,
                 "predictions": hf_result
             })
-        print("TRYING TO WRITE TO FIRESTORE")
+            
+        send_debug_message(" Пытаемся записать в Firestore...")
         # --- Сохраняем в groups/<chat_id>/checks/ ---
         try:
             db.collection('groups').document(str(chat_id)).collection('checks').document().set({
@@ -318,9 +319,9 @@ def telegram_webhook():
                 },
                 'date': datetime.now()
             })
-            print(f"Записано в groups/{chat_id}/checks")
+            send_debug_message(f"✅ Успешно записано в Firestore!")
         except Exception as e:
-            print(f"[Ошибка Firestore]: {e}")
+            send_debug_message(f"❌ Ошибка при записи в Firestore: {e}")
 
         print(f"[Telegram] Результат сохранён. Токсичность: {not is_safe}")
 
