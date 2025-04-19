@@ -275,19 +275,22 @@ def telegram_webhook():
             send_debug_message(f"❌ Ошибка: Группа {group_title} ещё не зарегистрирована — не сохраняем")
             return jsonify({"status": "group not registered"}), 200
 
-        send_debug_message("✅ пытаемся взять group_data")
-        send_debug_message("✅ пытаемся взять group_data")
         group_data = group_doc.to_dict()
         send_debug_message("✅ пытаемся взять group_data")
         if not group_data:
             send_debug_message("❌ Ошибка: group_doc пустой, to_dict() вернул None")
             return jsonify({"status": "group doc empty"}), 200
 
-        send_debug_message("✅ group_data получен, пытаемся взять admin_email")
-        admin_email = group_data.get('admin_email')
-        if not admin_email:
-            send_debug_message("❌ Ошибка: у группы нет admin_email")
-            return jsonify({"status": "no admin email"}), 200
+        send_debug_message("🧪 Проверка admin_email...")
+
+        if 'admin_email' not in group_data:
+            send_debug_message("❌ Ключ 'admin_email' отсутствует в group_data")
+        elif not group_data.get('admin_email'):
+            send_debug_message("❌ Ключ 'admin_email' есть, но его значение пустое")
+        else:
+            admin_email = group_data.get('admin_email')
+            send_debug_message(f"✅ admin_email получен: {admin_email}")
+
 
         send_debug_message(f"Webhook получен! /group_doc и проверки пройдены")
 
