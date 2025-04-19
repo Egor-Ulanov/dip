@@ -265,6 +265,8 @@ def telegram_webhook():
 
             return jsonify({"status": "sent chat id"}), 200
 
+        send_debug_message(f"Webhook получен! /getid пройден")
+
         # --- 1️ Проверяем: есть ли эта группа в базе (по group_id) ---
         group_doc = db.collection('groups').document(group_id).get()
         group_data = group_doc.to_dict()
@@ -281,11 +283,14 @@ def telegram_webhook():
             send_debug_message("❌ Ошибка: у группы нет admin_email")
             return jsonify({"status": "no admin email"}), 200
 
+        send_debug_message(f"Webhook получен! /group_doc и проверки пройдены")
+
         # --- 2️ Проверка текста через Hugging Face ---
         sentences = re.split(r'(?<=[.!?])\s+', user_text)
         is_safe = True
         violations = []
         results = []
+        send_debug_message(f"Webhook получен! Hugging Face предобработка пройден")
         send_debug_message("📥 Данные для записи:", {
             'text': user_text,
             'result': {
