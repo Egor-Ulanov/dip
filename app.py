@@ -267,14 +267,18 @@ def telegram_webhook():
 
         # --- 1️ Проверяем: есть ли эта группа в базе (по group_id) ---
         group_doc = db.collection('groups').document(group_id).get()
+        group_data = group_doc.to_dict()
+        if not group_data:
+            send_debug_message("❌ Ошибка: group_doc пустой, to_dict() вернул None")
+            return jsonify({"status": "group doc empty"}), 200
 
         if not group_doc.exists:
-            print(f"[Telegram] Группа {group_title} ещё не зарегистрирована — не сохраняем.")
+            send_debug_message(f"❌ Ошибка: Группа {group_title} ещё не зарегистрирована — не сохраняем")
             return jsonify({"status": "group not registered"}), 200
 
         admin_email = group_doc.to_dict().get('admin_email')
         if not admin_email:
-            print(f"[Telegram] У группы нет admin_email.")
+            send_debug_message("❌ Ошибка: у группы нет admin_email")
             return jsonify({"status": "no admin email"}), 200
 
         # --- 2️ Проверка текста через Hugging Face ---
