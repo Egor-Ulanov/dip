@@ -5,6 +5,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import requests
 import re
+import time
 import os
 import json
 
@@ -68,6 +69,7 @@ def send_debug_message(text):
             "text": f"[DEBUG]\n{text}",
             "parse_mode": "Markdown"
         })
+        time.sleep(0.3)  # 👈 не даём отправлять слишком быстро
     except Exception as e:
         print("Ошибка при отправке debug-сообщения:", e)
 
