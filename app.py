@@ -218,8 +218,8 @@ def telegram_webhook():
         data = request.get_json()
         print("[Telegram]", data)  # отладка
         message = data.get('message')
-        if not message:
-            return jsonify({"status": "no message"}), 200
+        # if not message:
+        #     return jsonify({"status": "no message"}), 200
 
         chat = message['chat']
         group_id = str(chat['id'])  # важно — ID группы (строкой)
