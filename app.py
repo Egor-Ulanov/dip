@@ -286,7 +286,7 @@ def telegram_webhook():
         is_safe = True
         violations = []
         results = []
-        print("📥 Данные для записи:", {
+        send_debug_message("📥 Данные для записи:", {
             'text': user_text,
             'result': {
                 'is_safe': is_safe,
@@ -306,6 +306,11 @@ def telegram_webhook():
                 violations.append(sentence)
 
             results.append({
+                "sentence": sentence,
+                "is_toxic": is_toxic,
+                "predictions": hf_result
+            })
+            send_debug_message({
                 "sentence": sentence,
                 "is_toxic": is_toxic,
                 "predictions": hf_result
