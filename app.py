@@ -229,7 +229,7 @@ def check_url():
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
     try:
-        send_debug_message(f"Webhook получен! Автор: {author}\nСообщение: {user_text}")
+        send_debug_message(f"Webhook получен!")
         data = request.get_json()
         print("[Telegram]", data)  # отладка
         message = data.get('message')
@@ -248,6 +248,8 @@ def telegram_webhook():
 
         user_text = message.get('text', '')
 
+        send_debug_message(f"Webhook получен!\nАвтор: {author}\nТекст: {user_text}")
+
         if user_text.strip() == "/getid":
             chat_id = message['chat']['id']
             chat_title = message['chat'].get('title', '')
@@ -262,8 +264,6 @@ def telegram_webhook():
             })
 
             return jsonify({"status": "sent chat id"}), 200
-        
-        print(f"[Telegram] {author} написал: {user_text}")
 
         # --- 1️ Проверяем: есть ли эта группа в базе (по group_id) ---
         group_doc = db.collection('groups').document(group_id).get()
