@@ -79,7 +79,7 @@ def send_debug_message(text):
 def send_email(to_email, subject, body):
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
-    from_email = "egor2010rm@gmail.com"  # поменяй на свою почту
+    from_email = "egorulanov908@gmail.com"  # поменяй на свою почту
     password = os.getenv("EMAIL_PASSWORD")  # храни пароль в переменной окружения!
 
     msg = MIMEText(body, "plain", "utf-8")
