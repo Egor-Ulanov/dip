@@ -258,7 +258,7 @@ def telegram_webhook():
         author = f"{from_user.get('first_name', '')}_{from_user.get('last_name', '')}_{user_id}".strip("_")
         user_text = message.get('text', '')
 
-        send_debug_message(f"✅ Webhook получен от {author} в группе {group_title}\nТекст: {user_text}")
+        # send_debug_message(f"✅ Webhook получен от {author} в группе {group_title}\nТекст: {user_text}")
 
         if user_text.strip() == "/getid":
             telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -277,19 +277,16 @@ def telegram_webhook():
             return jsonify({"status": "group not registered"}), 200
 
         group_data = group_doc.to_dict() or {}
-        admin_email = group_data.get('admin_email')
+        admin_email = group_data.get('info', {}).get('admin_email')
         # send_debug_message(f"📦 group_data: {json.dumps(group_data, ensure_ascii=False)}")
-        # if not admin_email:
-        #     send_debug_message(f"⚠️ У группы {group_title} нет admin_email.")
-        #     return jsonify({"status": "no admin email"}), 200
-        send_debug_message("📦 ПРЕДОБРАБОТКА1:")
+        if not admin_email:
+            send_debug_message(f"⚠️ У группы {group_title} нет admin_email.")
+            return jsonify({"status": "no admin email"}), 200
         # Проверка токсичности
         sentences = re.split(r'(?<=[.!?])\s+', user_text)
-        send_debug_message("📦 ПРЕДОБРАБОТКА2:")
         is_safe = True
         violations = []
         results = []
-        send_debug_message("📦 ПРЕДОБРАБОТКА3:")
 
         for sentence in sentences:
             hf_result = query_huggingface_api(sentence)
@@ -304,10 +301,10 @@ def telegram_webhook():
                 "is_toxic": is_toxic,
                 "predictions": hf_result
             })
-        send_debug_message(f"📦 checks: {user_text, results}")
+        # send_debug_message(f"📦 checks: {user_text, results}")
         # Сохраняем результат
         try:
-            db.collection('groups').document('-4661677635').collection('checks').document().set({
+            db.collection('groups').document(group_id).collection('checks').document().set({
                 'text': user_text,
                 'author': author,
                 'result': {
@@ -317,7 +314,7 @@ def telegram_webhook():
                 },
                 'date': datetime.now()
             })
-            send_debug_message(f"✅ Результат сохранён. Токсичность: {not is_safe}")
+            # send_debug_message(f"✅ Результат сохранён. Токсичность: {not is_safe}")
         except Exception as e:
             send_debug_message(f"❌ Ошибка при сохранении в Firestore: {e}")
 
