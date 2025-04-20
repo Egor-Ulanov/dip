@@ -278,7 +278,7 @@ def telegram_webhook():
 
         group_data = group_doc.to_dict() or {}
         admin_email = group_data.get('admin_email')
-        send_debug_message(f"📦 group_data: {json.dumps(group_data, ensure_ascii=False)}")
+        # send_debug_message(f"📦 group_data: {json.dumps(group_data, ensure_ascii=False)}")
         if not admin_email:
             send_debug_message(f"⚠️ У группы {group_title} нет admin_email.")
             return jsonify({"status": "no admin email"}), 200
