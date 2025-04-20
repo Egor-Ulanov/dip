@@ -5,6 +5,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import requests
 import re
+from functools import lru_cache
 import time
 import os
 import json
@@ -228,82 +229,87 @@ def check_url():
         print(f"Ошибка при запросе URL: {e}")
         return jsonify({'error': f"Ошибка при запросе URL: {str(e)}"}), 500
 
+# простая временная защита по message_id
+recent_messages = set()
+
+recent_messages = set()
+recent_messages = set()
+
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
     try:
-        send_debug_message(f"Webhook получен!")
         data = request.get_json()
-        print("[Telegram]", data)  # отладка
         message = data.get('message')
+
         if not message:
+            send_debug_message("❌ Нет message в payload!")
             return jsonify({"status": "no message"}), 200
 
+        message_id = message.get('message_id')
+        if message_id in recent_messages:
+            send_debug_message(f"⚠️ Дубликат message_id: {message_id}")
+            return jsonify({"status": "duplicate"}), 200
+        if message_id:
+            recent_messages.add(message_id)
+
+        # Информация о чате и пользователе
         chat = message['chat']
-        group_id = str(chat['id'])  # важно — ID группы (строкой)
+        group_id = str(chat['id'])
         group_title = chat.get('title', 'Без названия')
-
-        from_user = message['from']
-        first_name = from_user.get('first_name', '')
-        last_name = from_user.get('last_name', '')
+        from_user = message.get('from', {})
         user_id = from_user.get('id')
-        author = f"{first_name}_{last_name}_{user_id}".strip("_")
-
+        author = f"{from_user.get('first_name', '')}_{from_user.get('last_name', '')}_{user_id}".strip("_")
         user_text = message.get('text', '')
 
-        send_debug_message(f"Webhook получен!\nАвтор: {author}\nТекст: {user_text}")
+        send_debug_message(f"✅ Webhook получен от {author} в группе {group_title}\nТекст: {user_text}")
 
         if user_text.strip() == "/getid":
-            chat_id = message['chat']['id']
-            chat_title = message['chat'].get('title', '')
-            text = f"ID группы: `{chat_id}`\nНазвание: {chat_title}"
             telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
             telegram_api_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-
             requests.post(telegram_api_url, json={
-                "chat_id": chat_id,
-                "text": text,
+                "chat_id": group_id,
+                "text": f"ID группы: `{group_id}`\nНазвание: {group_title}",
                 "parse_mode": "Markdown"
             })
-
             return jsonify({"status": "sent chat id"}), 200
 
-        send_debug_message(f"Webhook получен! /getid пройден")
-
-        # --- 1️ Проверяем: есть ли эта группа в базе (по group_id) ---
+        # Проверка регистрации группы
         group_doc = db.collection('groups').document(group_id).get()
-
-        send_debug_message("✅  пытаемся взять group_doc.exists")
         if not group_doc.exists:
-            send_debug_message(f"❌ Ошибка: Группа {group_title} ещё не зарегистрирована — не сохраняем")
+            send_debug_message(f"⚠️ Группа {group_title} не зарегистрирована.")
             return jsonify({"status": "group not registered"}), 200
 
-        group_data = group_doc.to_dict()
-        send_debug_message("✅ пытаемся взять group_data")
-        if not group_data:
-            send_debug_message("❌ Ошибка: group_doc пустой, to_dict() вернул None")
-            return jsonify({"status": "group doc empty"}), 200
+        group_data = group_doc.to_dict() or {}
+        admin_email = group_data.get('admin_email')
 
-        send_debug_message("🧪 Проверка admin_email...")
+        if not admin_email:
+            send_debug_message(f"⚠️ У группы {group_title} нет admin_email.")
+            return jsonify({"status": "no admin email"}), 200
 
-        if 'admin_email' not in group_data:
-            send_debug_message("❌ Ключ 'admin_email' отсутствует в group_data")
-        elif not group_data.get('admin_email'):
-            send_debug_message("❌ Ключ 'admin_email' есть, но его значение пустое")
-        else:
-            admin_email = group_data.get('admin_email')
-            send_debug_message(f"✅ admin_email получен: {admin_email}")
-
-
-        send_debug_message(f"Webhook получен! /group_doc и проверки пройдены")
-
-        # --- 2️ Проверка текста через Hugging Face ---
+        # Проверка токсичности
         sentences = re.split(r'(?<=[.!?])\s+', user_text)
         is_safe = True
         violations = []
         results = []
-        send_debug_message(f"Webhook получен! Hugging Face предобработка пройден")
-        send_debug_message("📥 Данные для записи:", {
+
+        for sentence in sentences:
+            hf_result = query_huggingface_api(sentence)
+            if not isinstance(hf_result, list):
+                hf_result = [{"label": "error", "score": 0.0}]
+            is_toxic = any(pred.get("label") == "toxic" and pred.get("score", 0) > 0.5 for pred in hf_result)
+            if is_toxic:
+                is_safe = False
+                violations.append(sentence)
+            results.append({
+                "sentence": sentence,
+                "is_toxic": is_toxic,
+                "predictions": hf_result
+            })
+
+        # Сохраняем результат
+        db.collection('groups').document(group_id).collection('checks').document().set({
             'text': user_text,
+            'author': author,
             'result': {
                 'is_safe': is_safe,
                 'violations': violations,
@@ -311,52 +317,13 @@ def telegram_webhook():
             },
             'date': datetime.now()
         })
-        for sentence in sentences:
-            hf_result = query_huggingface_api(sentence)
-            if not isinstance(hf_result, list) or not all(isinstance(pred, dict) for pred in hf_result):
-                hf_result = [{"label": "error", "score": 0.0}]
-
-            is_toxic = any(pred["label"] == "toxic" and pred["score"] > 0.5 for pred in hf_result)
-            if is_toxic:
-                is_safe = False
-                violations.append(sentence)
-
-            results.append({
-                "sentence": sentence,
-                "is_toxic": is_toxic,
-                "predictions": hf_result
-            })
-            send_debug_message({
-                "sentence": sentence,
-                "is_toxic": is_toxic,
-                "predictions": hf_result
-            })
-            
-        send_debug_message(" Пытаемся записать в Firestore...")
-        # --- Сохраняем в groups/<chat_id>/checks/ ---
-        try:
-            db.collection('groups').document(str(chat_id)).collection('checks').document().set({
-                'text': user_text,
-                'result': {
-                    'is_safe': is_safe,
-                    'violations': violations,
-                    'results': results
-                },
-                'date': datetime.now()
-            })
-            send_debug_message(f"✅ Успешно записано в Firestore!")
-        except Exception as e:
-            send_debug_message(f"❌ Ошибка при записи в Firestore: {e}")
-
-        print(f"[Telegram] Результат сохранён. Токсичность: {not is_safe}")
-
-        # ---  (в будущем) отправка уведомления по email ---
-        # Здесь будет отправка письма через SMTP или API
+        send_debug_message(f"✅ Результат сохранён. Токсичность: {not is_safe}")
 
         return jsonify({"status": "ok"}), 200
 
     except Exception as e:
-        print(f"Ошибка в webhook: {str(e)}")
+        error_msg = f"❌ Ошибка в webhook: {str(e)}"
+        send_debug_message(error_msg)
         return jsonify({"error": str(e)}), 500
 
 
