@@ -325,7 +325,28 @@ def telegram_webhook():
         error_msg = f"❌ Ошибка в webhook: {str(e)}"
         send_debug_message(error_msg)
         return jsonify({"error": str(e)}), 500
+        
+@app.route('/test-webhook', methods=['POST'])
+def test_webhook():
+    try:
+        data = request.get_json()
+        message = data.get('message')
+        if not message:
+            return jsonify({"status": "no message"}), 200
 
+        chat = message['chat']
+        user_text = message.get('text', '')
+        chat_id = str(chat.get('id', 'unknown'))
+
+        # Просто пишем в фиксированную коллекцию без проверок
+        db.collection('groups').document("test").collection('checks').add({
+            'text': user_text,
+            'date': datetime.now()
+        })
+
+        return jsonify({"status": "saved"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
