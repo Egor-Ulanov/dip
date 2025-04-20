@@ -8,6 +8,8 @@ import re
 from functools import lru_cache
 import time
 import os
+import smtplib
+from email.mime.text import MIMEText
 import json
 
 # Инициализация Firebase
@@ -60,6 +62,27 @@ def query_huggingface_api(text):
 
 DEBUG_CHAT_ID = "-4661677635"  # ID твоего личного чата или тестовой группы
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+def send_email(to_email, subject, body):
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+    from_email = "egor2010rm@gmail.com"  # поменяй на свою почту
+    password = os.getenv("EMAIL_PASSWORD")  # храни пароль в переменной окружения!
+
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = to_email
+
+    try:
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(from_email, password)
+        server.sendmail(from_email, to_email, msg.as_string())
+        server.quit()
+        print(f"[Email] Письмо отправлено {to_email}")
+    except Exception as e:
+        print(f"[Email] Ошибка отправки: {e}")
 
 def send_debug_message(text):
     if not TELEGRAM_TOKEN or not DEBUG_CHAT_ID:
