@@ -93,7 +93,6 @@ def send_email(to_email, subject, body):
         server.login(from_email, password)
         server.sendmail(from_email, to_email, msg.as_string())
         server.quit()
-        send_debug_message(f"[Email] Письмо отправлено {to_email}")
     except Exception as e:
         send_debug_message(f"[Email] Ошибка отправки: {e}")
 
@@ -338,6 +337,16 @@ def telegram_webhook():
                 'date': datetime.now()
             })
             # send_debug_message(f"✅ Результат сохранён. Токсичность: {not is_safe}")
+
+            if not is_safe:
+                email_body = (
+                    f"В Telegram-группе «{group_title}» ({group_id}) "
+                    f"обнаружено токсичное сообщение:\n\n"
+                    f"Автор: {author}\n"
+                    f"Текст: {user_text}\n\n"
+                    f"Нарушения: {', '.join(violations)}"
+                )
+                send_email(admin_email, "⚠️ Обнаружено токсичное сообщение", email_body)
         except Exception as e:
             send_debug_message(f"❌ Ошибка при сохранении в Firestore: {e}")
 
