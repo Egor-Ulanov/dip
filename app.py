@@ -288,6 +288,7 @@ def telegram_webhook():
         is_safe = True
         violations = []
         results = []
+        send_debug_message("📦 ПРЕДОБРАБОТКА:")
 
         for sentence in sentences:
             hf_result = query_huggingface_api(sentence)
@@ -302,10 +303,10 @@ def telegram_webhook():
                 "is_toxic": is_toxic,
                 "predictions": hf_result
             })
-
+        send_debug_message(f"📦 checks: {user_text, results}")
         # Сохраняем результат
         try:
-            db.collection('groups').document(group_id).collection('checks').document().set({
+            db.collection('groups').document('-4661677635').collection('checks').document().set({
                 'text': user_text,
                 'author': author,
                 'result': {
@@ -325,7 +326,7 @@ def telegram_webhook():
         error_msg = f"❌ Ошибка в webhook: {str(e)}"
         send_debug_message(error_msg)
         return jsonify({"error": str(e)}), 500
-        
+
 @app.route('/test-webhook', methods=['POST'])
 def test_webhook():
     try:
