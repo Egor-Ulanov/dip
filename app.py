@@ -63,6 +63,19 @@ def query_huggingface_api(text):
 DEBUG_CHAT_ID = "-4661677635"  # ID твоего личного чата или тестовой группы
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
+def send_debug_message(text):
+    if not TELEGRAM_TOKEN or not DEBUG_CHAT_ID:
+        return
+    try:
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json={
+            "chat_id": DEBUG_CHAT_ID,
+            "text": f"[DEBUG]\n{text}",
+            "parse_mode": "Markdown"
+        })
+        time.sleep(0.3)  # 👈 не даём отправлять слишком быстро
+    except Exception as e:
+        print("Ошибка при отправке debug-сообщения:", e)
+
 def send_email(to_email, subject, body):
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
@@ -80,22 +93,9 @@ def send_email(to_email, subject, body):
         server.login(from_email, password)
         server.sendmail(from_email, to_email, msg.as_string())
         server.quit()
-        print(f"[Email] Письмо отправлено {to_email}")
+        send_debug_message(f"[Email] Письмо отправлено {to_email}")
     except Exception as e:
-        print(f"[Email] Ошибка отправки: {e}")
-
-def send_debug_message(text):
-    if not TELEGRAM_TOKEN or not DEBUG_CHAT_ID:
-        return
-    try:
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json={
-            "chat_id": DEBUG_CHAT_ID,
-            "text": f"[DEBUG]\n{text}",
-            "parse_mode": "Markdown"
-        })
-        time.sleep(0.3)  # 👈 не даём отправлять слишком быстро
-    except Exception as e:
-        print("Ошибка при отправке debug-сообщения:", e)
+        send_debug_message(f"[Email] Ошибка отправки: {e}")
 
 @app.before_request
 def before_request_log():
