@@ -232,9 +232,6 @@ def check_url():
 # простая временная защита по message_id
 recent_messages = set()
 
-recent_messages = set()
-recent_messages = set()
-
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
     try:
@@ -281,7 +278,7 @@ def telegram_webhook():
 
         group_data = group_doc.to_dict() or {}
         admin_email = group_data.get('admin_email')
-
+        send_debug_message(f"📦 group_data: {json.dumps(group_data, ensure_ascii=False)}")
         if not admin_email:
             send_debug_message(f"⚠️ У группы {group_title} нет admin_email.")
             return jsonify({"status": "no admin email"}), 200
@@ -307,17 +304,20 @@ def telegram_webhook():
             })
 
         # Сохраняем результат
-        db.collection('groups').document(group_id).collection('checks').document().set({
-            'text': user_text,
-            'author': author,
-            'result': {
-                'is_safe': is_safe,
-                'violations': violations,
-                'results': results
-            },
-            'date': datetime.now()
-        })
-        send_debug_message(f"✅ Результат сохранён. Токсичность: {not is_safe}")
+        try:
+            db.collection('groups').document(group_id).collection('checks').document().set({
+                'text': user_text,
+                'author': author,
+                'result': {
+                    'is_safe': is_safe,
+                    'violations': violations,
+                    'results': results
+                },
+                'date': datetime.now()
+            })
+            send_debug_message(f"✅ Результат сохранён. Токсичность: {not is_safe}")
+        except Exception as e:
+            send_debug_message(f"❌ Ошибка при сохранении в Firestore: {e}")
 
         return jsonify({"status": "ok"}), 200
 
