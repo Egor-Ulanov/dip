@@ -279,16 +279,17 @@ def telegram_webhook():
         group_data = group_doc.to_dict() or {}
         admin_email = group_data.get('admin_email')
         # send_debug_message(f"📦 group_data: {json.dumps(group_data, ensure_ascii=False)}")
-        if not admin_email:
-            send_debug_message(f"⚠️ У группы {group_title} нет admin_email.")
-            return jsonify({"status": "no admin email"}), 200
-
+        # if not admin_email:
+        #     send_debug_message(f"⚠️ У группы {group_title} нет admin_email.")
+        #     return jsonify({"status": "no admin email"}), 200
+        send_debug_message("📦 ПРЕДОБРАБОТКА1:")
         # Проверка токсичности
         sentences = re.split(r'(?<=[.!?])\s+', user_text)
+        send_debug_message("📦 ПРЕДОБРАБОТКА2:")
         is_safe = True
         violations = []
         results = []
-        send_debug_message("📦 ПРЕДОБРАБОТКА:")
+        send_debug_message("📦 ПРЕДОБРАБОТКА3:")
 
         for sentence in sentences:
             hf_result = query_huggingface_api(sentence)
