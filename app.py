@@ -15,11 +15,10 @@ import joblib
 from tensorflow.keras.models import load_model
 
 # Пути к файлам
-REVIEW_MODEL_PATH = "/backend/review_detection_model.keras"
-REVIEW_VECTORIZER_PATH = "/backend/review_vectorizer.pkl"
-
-SENTIMENT_MODEL_PATH = "/backend/review_sentiment_model.keras"
-SENTIMENT_VECTORIZER_PATH = "/backend/review_sentiment_vectorizer.pkl"
+REVIEW_MODEL_PATH = "review_detection_model.keras"
+REVIEW_VECTORIZER_PATH = "review_vectorizer.pkl"
+SENTIMENT_MODEL_PATH = "sentiment_model.keras"
+SENTIMENT_VECTORIZER_PATH = "sentiment_vectorizer.pkl"
 
 # Загрузка
 review_model = load_model(REVIEW_MODEL_PATH)
