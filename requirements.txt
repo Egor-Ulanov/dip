@@ -22,7 +22,7 @@ google-crc32c==1.6.0
 google-resumable-media==2.7.2
 googleapis-common-protos==1.66.0
 grpcio==1.68.1
-grpcio-status==1.68.1
+grpcio-status
 gunicorn==20.1.0
 httplib2==0.22.0
 idna==3.10
@@ -36,7 +36,7 @@ pdfminer.six==20231228
 pdfplumber==0.11.4
 pillow==11.0.0
 proto-plus==1.25.0
-protobuf>=3.20.3,!=4.21.0,!=4.21.1,!=4.21.2,!=4.21.3,!=4.21.4,!=4.21.5,<5.0.0
+protobuf
 pyasn1==0.6.1
 pyasn1_modules==0.4.1
 pycparser==2.22
