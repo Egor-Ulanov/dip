@@ -11,6 +11,22 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 import json
+import joblib
+from tensorflow.keras.models import load_model
+
+# Пути к файлам
+REVIEW_MODEL_PATH = "/backend/review_detection_model.keras"
+REVIEW_VECTORIZER_PATH = "/backend/review_vectorizer.pkl"
+
+SENTIMENT_MODEL_PATH = "/backend/review_sentiment_model.keras"
+SENTIMENT_VECTORIZER_PATH = "/backend/review_sentiment_vectorizer.pkl"
+
+# Загрузка
+review_model = load_model(REVIEW_MODEL_PATH)
+review_vectorizer = joblib.load(REVIEW_VECTORIZER_PATH)
+
+sentiment_model = load_model(SENTIMENT_MODEL_PATH)
+sentiment_vectorizer = joblib.load(SENTIMENT_VECTORIZER_PATH)
 
 # Инициализация Firebase
 # Загрузка конфигурации из переменной окружения
@@ -280,6 +296,17 @@ def telegram_webhook():
         author = f"{from_user.get('first_name', '')}_{from_user.get('last_name', '')}_{user_id}".strip("_")
         user_text = message.get('text', '')
 
+        # Проверка, является ли сообщение отзывом
+        vec_review = review_vectorizer.transform([user_text])
+        is_review = review_model.predict(vec_review.toarray())[0][0] >= 0.5
+
+        # По умолчанию считаем неотзыв и нет оценки
+        is_positive = None
+
+        if is_review:
+            vec_sentiment = sentiment_vectorizer.transform([user_text])
+            is_positive = sentiment_model.predict(vec_sentiment.toarray())[0][0] >= 0.5
+
         # send_debug_message(f"✅ Webhook получен от {author} в группе {group_title}\nТекст: {user_text}")
 
         if user_text.strip() == "/getid":
@@ -329,6 +356,8 @@ def telegram_webhook():
             db.collection('groups').document(group_id).collection('checks').document().set({
                 'text': user_text,
                 'author': author,
+                'is_review': is_review,
+                'is_positive': is_positive,
                 'result': {
                     'is_safe': is_safe,
                     'violations': violations,
@@ -376,6 +405,22 @@ def test_webhook():
         })
 
         return jsonify({"status": "saved"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/send-test-email', methods=['GET'])
+def send_test_email():
+    test_email = request.args.get('to')
+    if not test_email:
+        return jsonify({"error": "Укажи ?to=example@mail.com в запросе"}), 400
+
+    try:
+        send_email(
+            test_email,
+            "Тестовое письмо от Flask",
+            "Если ты это читаешь — отправка работает! ✅"
+        )
+        return jsonify({"status": f"Письмо отправлено на {test_email}"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
