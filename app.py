@@ -352,6 +352,7 @@ def telegram_webhook():
         # send_debug_message(f"📦 checks: {user_text, results}")
         # Сохраняем результат
         try:
+            send_debug_message(f"📥 Сохраняю сообщение от {author}: {user_text}")
             db.collection('groups').document(group_id).collection('checks').document().set({
                 'text': user_text,
                 'author': author,
