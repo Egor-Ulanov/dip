@@ -380,7 +380,7 @@ def telegram_webhook():
                 },
                 'date': datetime.now()
             })
-            # send_debug_message(f"✅ Результат сохранён. Токсичность: {not is_safe}")
+            send_debug_message(f"Сообщение review: {review_flag}, sentiment: {sentiment_flag}, is_safe: {is_safe}, violations: {violations},results: {results}")
 
             if not is_safe:
                 email_body = (
