@@ -50,7 +50,7 @@ def is_review(text):
 def is_positive_review(text):
     try:
         X = sentiment_vectorizer.transform([text])
-        prediction = sentiment_model.predict(X)[0][0]
+        prediction = sentiment_model.predict(X.toarray())[0][0]
         return prediction > 0.5
     except Exception as e:
         send_debug_message(f"[SentimentCheck] Ошибка определения тональности: {e}")
