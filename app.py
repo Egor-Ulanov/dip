@@ -33,6 +33,24 @@ firebase_config = os.getenv("FIREBASE_CONFIG")
 credentials_info = json.loads(firebase_config)
 cred = credentials.Certificate(credentials_info)
 
+def is_review(text):
+    try:
+        X = review_vectorizer.transform([text])
+        prediction = review_model.predict(X)[0][0]
+        return prediction > 0.0
+    except Exception as e:
+        send_debug_message(f"[ReviewCheck] Ошибка определения отзыва: {e}")
+        return False
+
+def is_positive_review(text):
+    try:
+        X = sentiment_vectorizer.transform([text])
+        prediction = sentiment_model.predict(X)[0][0]
+        return prediction > 0.5
+    except Exception as e:
+        send_debug_message(f"[SentimentCheck] Ошибка определения тональности: {e}")
+        return None
+
 # print("Бот токен:",os.getenv("TELEGRAM_BOT_TOKEN"))
 
 initialize_app(cred)
@@ -295,16 +313,6 @@ def telegram_webhook():
         author = f"{from_user.get('first_name', '')}_{from_user.get('last_name', '')}_{user_id}".strip("_")
         user_text = message.get('text', '')
 
-        # Проверка, является ли сообщение отзывом
-        vec_review = review_vectorizer.transform([user_text])
-        is_review = review_model.predict(vec_review.toarray())[0][0] >= 0.5
-
-        # По умолчанию считаем неотзыв и нет оценки
-        is_positive = None
-
-        if is_review:
-            vec_sentiment = sentiment_vectorizer.transform([user_text])
-            is_positive = sentiment_model.predict(vec_sentiment.toarray())[0][0] >= 0.5
 
         # send_debug_message(f"✅ Webhook получен от {author} в группе {group_title}\nТекст: {user_text}")
 
@@ -349,6 +357,13 @@ def telegram_webhook():
                 "is_toxic": is_toxic,
                 "predictions": hf_result
             })
+
+        # Проверка, является ли сообщение отзывом
+        review_flag = is_review(user_text)
+        sentiment_flag = None
+        if review_flag:
+            sentiment_flag = is_positive_review(user_text)
+        
         # send_debug_message(f"📦 checks: {user_text, results}")
         # Сохраняем результат
         try:
@@ -356,8 +371,8 @@ def telegram_webhook():
             db.collection('groups').document(group_id).collection('checks').document().set({
                 'text': user_text,
                 'author': author,
-                'is_review': is_review,
-                'is_positive': is_positive,
+                'review': review_flag,
+                'sentiment': sentiment_flag,
                 'result': {
                     'is_safe': is_safe,
                     'violations': violations,
@@ -365,7 +380,7 @@ def telegram_webhook():
                 },
                 'date': datetime.now()
             })
-            send_debug_message(f"Результат is_review: {is_review} is_positive: {is_positive} results: {results}")
+            send_debug_message(f"Сообщение review: {review_flag}, sentiment: {sentiment_flag}, is_safe: {is_safe}, violations: {violations},results: {results}")
 
             if not is_safe:
                 email_body = (
