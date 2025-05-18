@@ -36,9 +36,7 @@ cred = credentials.Certificate(credentials_info)
 def is_review(text):
     try:
         X = review_vectorizer.transform([text])
-        send_debug_message(f"[ReviewCheck] Векторизованный текст: {X}")
         prediction = review_model.predict(X.toarray())[0][0]
-        send_debug_message(f"[ReviewCheck] Предсказание: {prediction}")
         return prediction > 0.5
     except Exception as e:
         try:
@@ -50,7 +48,9 @@ def is_review(text):
 def is_positive_review(text):
     try:
         X = sentiment_vectorizer.transform([text])
+        send_debug_message(f"[ReviewCheck] Векторизованный текст: {X}")
         prediction = sentiment_model.predict(X.toarray())[0][0]
+        send_debug_message(f"[ReviewCheck] Предсказание: {prediction}")
         return prediction > 0.5
     except Exception as e:
         send_debug_message(f"[SentimentCheck] Ошибка определения тональности: {e}")
