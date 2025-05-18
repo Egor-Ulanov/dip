@@ -37,7 +37,7 @@ def is_review(text):
     try:
         X = review_vectorizer.transform([text])
         prediction = review_model.predict(X)[0][0]
-        return prediction > 0.0
+        return True
     except Exception as e:
         send_debug_message(f"[ReviewCheck] Ошибка определения отзыва: {e}")
         return False
