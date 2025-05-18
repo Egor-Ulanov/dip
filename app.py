@@ -36,8 +36,10 @@ cred = credentials.Certificate(credentials_info)
 def is_review(text):
     try:
         X = review_vectorizer.transform([text])
+        send_debug_message(f"[ReviewCheck] Векторизованный текст: {X}")
         prediction = review_model.predict(X)[0][0]
-        return True
+        send_debug_message(f"[ReviewCheck] Предсказание: {prediction}")
+        return prediction > 0.5
     except Exception as e:
         send_debug_message(f"[ReviewCheck] Ошибка определения отзыва: {e}")
         return False
