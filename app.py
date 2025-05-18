@@ -365,7 +365,6 @@ def telegram_webhook():
 
         # Проверка, является ли сообщение отзывом
         review_flag = is_review(user_text)
-        sentiment_flag = None
         if review_flag:
             sentiment_flag = is_positive_review(user_text)
         
