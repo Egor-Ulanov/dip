@@ -371,21 +371,22 @@ def telegram_webhook():
         # send_debug_message(f"📦 checks: {user_text, results}")
         # Сохраняем результат
         try:
-            send_debug_message(f"📥 Сохраняю сообщение от {author}: {user_text}")
-            send_debug_message(f"Сообщение review: {review_flag}, sentiment: {sentiment_flag}, is_safe: {is_safe}, violations: {violations},results: {results}")
-            db.collection('groups').document(group_id).collection('checks').document().set({
-                'text': user_text,
-                'author': author,
-                'review': review_flag,
-                'sentiment': sentiment_flag,
-                'result': {
-                    'is_safe': is_safe,
-                    'violations': violations,
-                    'results': results
-                },
-                'date': datetime.now()
-            })
-            send_debug_message(f"Сообщение review: {review_flag}, sentiment: {sentiment_flag}, is_safe: {is_safe}, violations: {violations},results: {results}")
+            try:
+                db.collection('groups').document(group_id).collection('checks').document().set({
+                    'text': user_text,
+                    'author': author,
+                    'review': review_flag,
+                    'sentiment': sentiment_flag,
+                    'result': {
+                        'is_safe': is_safe,
+                        'violations': violations,
+                        'results': results
+                    },
+                    'date': datetime.now()
+                })
+                send_debug_message(f"✅ Успешно сохранил сообщение в Firestore")
+            except Exception as e:
+                send_debug_message(f"❌ Ошибка при сохранении в Firestore: {e}")
 
             if not is_safe:
                 email_body = (
