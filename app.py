@@ -372,6 +372,10 @@ def telegram_webhook():
         # Сохраняем результат
         try:
             try:
+                send_debug_message(f"📛 group_id: {group_id}")
+                send_debug_message(f"📊 review_flag={review_flag}, sentiment_flag={sentiment_flag}")
+                import traceback
+                send_debug_message(f"❌ Ошибка при сохранении в Firestore:\n{traceback.format_exc()}")
                 db.collection('groups').document(group_id).collection('checks').document().set({
                     'text': user_text,
                     'author': author,
