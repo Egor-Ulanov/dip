@@ -433,6 +433,33 @@ def test_webhook():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/upload-image', methods=['POST'])
+def upload_image():
+    try:
+        file = request.files['file']
+        upload_preset = 'diplom'
+        
+        # Формируем данные для отправки в Cloudinary
+        form_data = {
+            'file': file,
+            'upload_preset': upload_preset
+        }
+        
+        # Отправляем файл в Cloudinary
+        response = requests.post(
+            f'https://api.cloudinary.com/v1_1/dh2qb7atd/image/upload',
+            files=form_data
+        )
+        
+        # Получаем URL загруженного файла
+        result = response.json()
+        
+        return jsonify({
+            'url': result['secure_url']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/send-test-email', methods=['GET'])
 def send_test_email():
     test_email = request.args.get('to')
