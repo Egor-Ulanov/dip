@@ -1,5 +1,19 @@
+# Игнорируем файлы моделей
+models/rubert_tiny2_final/model.safetensors
+models/rubert_tiny2_final/training_args.bin
+
+# Python
 __pycache__/
-*.pyc
-.env
+*.py[cod]
+*$py.class
+
+# Virtual Environment
 venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+
 dipl-12202-firebase-adminsdk-dn0om-3030a99552.json

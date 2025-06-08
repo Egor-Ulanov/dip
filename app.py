@@ -16,6 +16,7 @@ from tensorflow.keras.models import load_model
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import numpy as np
+from pathlib import Path
 
 # Пути к файлам моделей
 SPAM_MODEL_PATH = "models/rubert_tiny2_final"
@@ -23,6 +24,34 @@ REVIEW_MODEL_PATH = "review_detection_model.keras"
 REVIEW_VECTORIZER_PATH = "review_vectorizer.pkl"
 SENTIMENT_MODEL_PATH = "sentiment_model.keras"
 SENTIMENT_VECTORIZER_PATH = "sentiment_vectorizer.pkl"
+
+# URL для скачивания файлов модели
+MODEL_FILES = {
+    'model.safetensors': os.getenv('MODEL_SAFETENSORS_URL', 'https://drive.google.com/uc?id=10DNdCYaR3-9hLFUKLYvV-8lxVOvNy85u'),
+    'training_args.bin': os.getenv('TRAINING_ARGS_URL', 'https://drive.google.com/uc?id=1d94dXzqmB0UynXh9AysJ-wstPMY-JApO')
+}
+
+def download_model_files():
+    """Скачивает файлы модели, если их нет."""
+    model_dir = Path(SPAM_MODEL_PATH)
+    model_dir.mkdir(parents=True, exist_ok=True)
+    
+    for filename, url in MODEL_FILES.items():
+        file_path = model_dir / filename
+        if not file_path.exists():
+            try:
+                print(f"Скачиваем {filename}...")
+                response = requests.get(url)
+                response.raise_for_status()
+                with open(file_path, 'wb') as f:
+                    f.write(response.content)
+                print(f"Файл {filename} успешно скачан")
+            except Exception as e:
+                print(f"Ошибка при скачивании {filename}: {e}")
+                raise
+
+# Скачиваем файлы модели при запуске
+download_model_files()
 
 # Загрузка моделей
 try:
