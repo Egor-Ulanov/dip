@@ -13,12 +13,56 @@ from email.mime.text import MIMEText
 import json
 import joblib
 from tensorflow.keras.models import load_model
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import numpy as np
 
-# Пути к файлам
+# Пути к файлам моделей
+SPAM_MODEL_PATH = "models/rubert_tiny2_final"
 REVIEW_MODEL_PATH = "review_detection_model.keras"
 REVIEW_VECTORIZER_PATH = "review_vectorizer.pkl"
 SENTIMENT_MODEL_PATH = "sentiment_model.keras"
 SENTIMENT_VECTORIZER_PATH = "sentiment_vectorizer.pkl"
+
+# Загрузка моделей
+try:
+    spam_tokenizer = AutoTokenizer.from_pretrained(SPAM_MODEL_PATH)
+    spam_model = AutoModelForSequenceClassification.from_pretrained(
+        SPAM_MODEL_PATH,
+        device_map='auto',  # Автоматически выберет GPU если доступен
+        use_safetensors=True  # Явно указываем использование safetensors
+    )
+    spam_model.eval()  # Переводим модель в режим оценки
+except Exception as e:
+    send_debug_message(f"[ModelLoading] Ошибка загрузки модели спама: {e}")
+    raise e
+
+# Функция проверки на спам
+def check_spam(text):
+    try:
+        inputs = spam_tokenizer(
+            text,
+            truncation=True,
+            padding=True,
+            max_length=512,
+            return_tensors="pt"
+        )
+
+        with torch.no_grad():
+            outputs = spam_model(**inputs)
+            predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+
+        probs = predictions[0].numpy()
+        predicted_class = int(np.argmax(probs))
+        confidence = float(probs[predicted_class])
+
+        return {
+            "is_spam": predicted_class == 1,
+            "confidence": confidence
+        }
+    except Exception as e:
+        send_debug_message(f"[SpamCheck] Ошибка проверки на спам: {e}")
+        return {"is_spam": False, "confidence": 0.0}
 
 # Загрузка
 review_model = load_model(REVIEW_MODEL_PATH)
@@ -339,10 +383,13 @@ def telegram_webhook():
 
         group_data = group_doc.to_dict() or {}
         admin_email = group_data.get('info', {}).get('admin_email')
-        # send_debug_message(f"📦 group_data: {json.dumps(group_data, ensure_ascii=False)}")
         if not admin_email:
             send_debug_message(f"⚠️ У группы {group_title} нет admin_email.")
             return jsonify({"status": "no admin email"}), 200
+
+        # Проверка на спам
+        spam_check = check_spam(user_text)
+        
         # Проверка токсичности
         sentences = re.split(r'(?<=[.!?])\s+', user_text)
         is_safe = True
@@ -371,36 +418,34 @@ def telegram_webhook():
         # send_debug_message(f"📦 checks: {user_text, results}")
         # Сохраняем результат
         try:
-            try:
-                send_debug_message(f"📛 group_id: {group_id}")
-                send_debug_message(f"📊 review_flag={review_flag}, sentiment_flag={sentiment_flag}")
-                import traceback
-                send_debug_message(f"❌ Ошибка при сохранении в Firestore:\n{traceback.format_exc()}")
-                db.collection('groups').document(group_id).collection('checks').document().set({
-                    'text': user_text,
-                    'author': author,
-                    'review': review_flag,
-                    'sentiment': sentiment_flag,
-                    'result': {
-                        'is_safe': is_safe,
-                        'violations': violations,
-                        'results': results
-                    },
-                    'date': datetime.now()
-                })
-                send_debug_message(f"✅ Успешно сохранил сообщение в Firestore")
-            except Exception as e:
-                send_debug_message(f"❌ Ошибка при сохранении в Firestore: {e}")
+            db.collection('groups').document(group_id).collection('checks').document().set({
+                'text': user_text,
+                'author': author,
+                'review': review_flag,
+                'sentiment': sentiment_flag,
+                'spam_check': spam_check,  # Добавляем результат проверки на спам
+                'result': {
+                    'is_safe': is_safe,
+                    'violations': violations,
+                    'results': results
+                },
+                'date': datetime.now()
+            })
 
-            if not is_safe:
+            if not is_safe or spam_check['is_spam']:
+                violations_text = ', '.join(violations) if violations else 'нет'
                 email_body = (
                     f"В Telegram-группе «{group_title}» ({group_id}) "
-                    f"обнаружено токсичное сообщение:\n\n"
+                    f"обнаружено проблемное сообщение:\n\n"
                     f"Автор: {author}\n"
                     f"Текст: {user_text}\n\n"
-                    f"Нарушения: {', '.join(violations)}"
+                    f"Токсичность: {'Обнаружена' if not is_safe else 'Не обнаружена'}\n"
+                    f"Спам: {'Обнаружен' if spam_check['is_spam'] else 'Не обнаружен'}\n"
+                    f"Уверенность (спам): {spam_check['confidence']:.2%}\n"
+                    f"Нарушения: {violations_text}"
                 )
-                send_email(admin_email, "⚠️ Обнаружено токсичное сообщение", email_body)
+                send_email(admin_email, "⚠️ Обнаружено проблемное сообщение", email_body)
+
         except Exception as e:
             send_debug_message(f"❌ Ошибка при сохранении в Firestore: {e}")
 
