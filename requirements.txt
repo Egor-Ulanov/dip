@@ -22,7 +22,7 @@ google-crc32c==1.6.0
 google-resumable-media==2.7.2
 googleapis-common-protos==1.66.0
 grpcio==1.68.1
-grpcio-status==1.68.1
+grpcio-status
 gunicorn==20.1.0
 httplib2==0.22.0
 idna==3.10
@@ -32,12 +32,12 @@ joblib==1.4.2
 MarkupSafe==3.0.2
 msgpack==1.1.0
 nltk==3.9.1
-numpy==1.24.3
+numpy>=1.17
 pdfminer.six==20231228
 pdfplumber==0.11.4
 pillow==11.0.0
 proto-plus==1.25.0
-protobuf>=3.20.2,<6.0.0.dev0
+protobuf
 pyasn1==0.6.1
 pyasn1_modules==0.4.1
 pycparser==2.22
@@ -49,10 +49,10 @@ requests==2.32.3
 rsa==4.9
 soupsieve==2.6
 tensorflow==2.12.0
-torch==2.2.0
+torch>=2.0.0
 transformers==4.52.4
 tokenizers==0.21.1
-safetensors==0.4.3
+safetensors>=0.4.3
 tqdm==4.67.1
 uritemplate==4.1.1
 urllib3==2.2.3
