@@ -53,43 +53,47 @@ def download_model_files():
 # Скачиваем файлы модели при запуске
 download_model_files()
 
-# Загрузка моделей
-try:
-    print("🔄 Загрузка моделей...")
-    review_model = load_model(REVIEW_MODEL_PATH)
-    review_vectorizer = joblib.load(REVIEW_VECTORIZER_PATH)
-    sentiment_model = load_model(SENTIMENT_MODEL_PATH)
-    sentiment_vectorizer = joblib.load(SENTIMENT_VECTORIZER_PATH)
-    print("✅ Все модели успешно загружены")
-except Exception as e:
-    print(f"⚠️ Ошибка загрузки моделей: {e}")
-    # Создаем заглушки для функций
-    def is_review(text):
-        return False
-    
-    def is_positive_review(text):
-        return None
-    
-    review_model = None
-    review_vectorizer = None
-    sentiment_model = None
-    sentiment_vectorizer = None
+# Глобальные переменные для моделей
+review_model = None
+review_vectorizer = None
+sentiment_model = None
+sentiment_vectorizer = None
+db = None
 
-# Инициализация Firebase
-try:
-    print("🔄 Инициализация Firebase...")
-    firebase_config = os.getenv("FIREBASE_CONFIG")
-    credentials_info = json.loads(firebase_config)
-    cred = credentials.Certificate(credentials_info)
-    initialize_app(cred)
-    db = firestore.client()
-    print("✅ Firebase успешно инициализирован")
-except Exception as e:
-    print(f"⚠️ Ошибка инициализации Firebase: {e}")
-    db = None
+def load_models():
+    global review_model, review_vectorizer, sentiment_model, sentiment_vectorizer
+    if review_model is None:
+        try:
+            print("🔄 Загрузка моделей...")
+            review_model = load_model(REVIEW_MODEL_PATH)
+            review_vectorizer = joblib.load(REVIEW_VECTORIZER_PATH)
+            sentiment_model = load_model(SENTIMENT_MODEL_PATH)
+            sentiment_vectorizer = joblib.load(SENTIMENT_VECTORIZER_PATH)
+            print("✅ Все модели успешно загружены")
+        except Exception as e:
+            print(f"⚠️ Ошибка загрузки моделей: {e}")
+
+def init_firebase():
+    global db
+    if db is None:
+        try:
+            print("🔄 Инициализация Firebase...")
+            firebase_config = os.getenv("FIREBASE_CONFIG")
+            credentials_info = json.loads(firebase_config)
+            cred = credentials.Certificate(credentials_info)
+            initialize_app(cred)
+            db = firestore.client()
+            print("✅ Firebase успешно инициализирован")
+        except Exception as e:
+            print(f"⚠️ Ошибка инициализации Firebase: {e}")
 
 app = Flask(__name__)
 CORS(app)
+
+@app.before_request
+def before_request():
+    load_models()
+    init_firebase()
 
 # Токен API Hugging Face
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
