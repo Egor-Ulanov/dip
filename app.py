@@ -58,10 +58,10 @@ try:
     spam_tokenizer = AutoTokenizer.from_pretrained(SPAM_MODEL_PATH)
     spam_model = AutoModelForSequenceClassification.from_pretrained(
         SPAM_MODEL_PATH,
-        device_map='auto',  # Автоматически выберет GPU если доступен
-        use_safetensors=True  # Явно указываем использование safetensors
+        device_map='auto',
+        use_safetensors=True
     )
-    spam_model.eval()  # Переводим модель в режим оценки
+    spam_model.eval()
 except Exception as e:
     send_debug_message(f"[ModelLoading] Ошибка загрузки модели спама: {e}")
     raise e
@@ -93,7 +93,7 @@ def check_spam(text):
         send_debug_message(f"[SpamCheck] Ошибка проверки на спам: {e}")
         return {"is_spam": False, "confidence": 0.0}
 
-# Загрузка
+# Загрузка остальных моделей
 review_model = load_model(REVIEW_MODEL_PATH)
 review_vectorizer = joblib.load(REVIEW_VECTORIZER_PATH)
 
@@ -110,7 +110,7 @@ def is_review(text):
     try:
         X = review_vectorizer.transform([text])
         prediction = review_model.predict(X.toarray())[0][0]
-        return prediction > 0.5
+        return prediction > 0.0
     except Exception as e:
         try:
             send_debug_message(f"[ReviewCheck] Ошибка определения отзыва: {e}")
@@ -124,7 +124,7 @@ def is_positive_review(text):
         send_debug_message(f"[ReviewCheck] Векторизованный текст: {X}")
         prediction = sentiment_model.predict(X.toarray())[0][0]
         send_debug_message(f"[ReviewCheck] Предсказание: {prediction}")
-        return prediction > 0.5
+        return prediction > 0.0
     except Exception as e:
         send_debug_message(f"[SentimentCheck] Ошибка определения тональности: {e}")
         return None
