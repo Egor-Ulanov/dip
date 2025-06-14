@@ -55,50 +55,7 @@ download_model_files()
 
 # Загрузка моделей
 try:
-    spam_tokenizer = AutoTokenizer.from_pretrained(SPAM_MODEL_PATH)
-    spam_model = AutoModelForSequenceClassification.from_pretrained(
-        SPAM_MODEL_PATH,
-        device_map='auto',
-        use_safetensors=True
-    )
-    spam_model.eval()
-except Exception as e:
-    send_debug_message(f"[ModelLoading] Ошибка загрузки модели спама: {e}")
-    raise e
-
-# Функция проверки на спам
-def check_spam(text):
-    try:
-        if not hasattr(check_spam, 'spam_tokenizer') or not hasattr(check_spam, 'spam_model'):
-            print("⚠️ Модель спама не загружена")
-            return {"is_spam": False, "confidence": 0.0}
-            
-        inputs = spam_tokenizer(
-            text,
-            truncation=True,
-            padding=True,
-            max_length=512,
-            return_tensors="pt"
-        )
-
-        with torch.no_grad():
-            outputs = spam_model(**inputs)
-            predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-
-        probs = predictions[0].numpy()
-        predicted_class = int(np.argmax(probs))
-        confidence = float(probs[predicted_class])
-
-        return {
-            "is_spam": predicted_class == 1,
-            "confidence": confidence
-        }
-    except Exception as e:
-        print(f"⚠️ Ошибка проверки на спам: {e}")
-        return {"is_spam": False, "confidence": 0.0}
-
-# Загрузка остальных моделей
-try:
+    print("🔄 Загрузка моделей...")
     review_model = load_model(REVIEW_MODEL_PATH)
     review_vectorizer = joblib.load(REVIEW_VECTORIZER_PATH)
     sentiment_model = load_model(SENTIMENT_MODEL_PATH)
@@ -119,44 +76,23 @@ except Exception as e:
     sentiment_vectorizer = None
 
 # Инициализация Firebase
-# Загрузка конфигурации из переменной окружения
-firebase_config = os.getenv("FIREBASE_CONFIG")
-credentials_info = json.loads(firebase_config)
-cred = credentials.Certificate(credentials_info)
-
-def is_review(text):
-    try:
-        X = review_vectorizer.transform([text])
-        prediction = review_model.predict(X.toarray())[0][0]
-        return prediction > 0.0
-    except Exception as e:
-        try:
-            send_debug_message(f"[ReviewCheck] Ошибка определения отзыва: {e}")
-        except:
-            send_debug_message("[ReviewCheck] send_debug_message тоже упал")
-        return False
-
-def is_positive_review(text):
-    try:
-        X = sentiment_vectorizer.transform([text])
-        send_debug_message(f"[ReviewCheck] Векторизованный текст: {X}")
-        prediction = sentiment_model.predict(X.toarray())[0][0]
-        send_debug_message(f"[ReviewCheck] Предсказание: {prediction}")
-        return prediction > 0.0
-    except Exception as e:
-        send_debug_message(f"[SentimentCheck] Ошибка определения тональности: {e}")
-        return None
-
-# print("Бот токен:",os.getenv("TELEGRAM_BOT_TOKEN"))
-
-initialize_app(cred)
-db = firestore.client()
-
-# Токен API Hugging Face
-HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+try:
+    print("🔄 Инициализация Firebase...")
+    firebase_config = os.getenv("FIREBASE_CONFIG")
+    credentials_info = json.loads(firebase_config)
+    cred = credentials.Certificate(credentials_info)
+    initialize_app(cred)
+    db = firestore.client()
+    print("✅ Firebase успешно инициализирован")
+except Exception as e:
+    print(f"⚠️ Ошибка инициализации Firebase: {e}")
+    db = None
 
 app = Flask(__name__)
 CORS(app)
+
+# Токен API Hugging Face
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
 # Функция для вызова Hugging Face Inference API
 def query_huggingface_api(text):
@@ -569,6 +505,9 @@ def send_test_email():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    print(f"✅ Starting server on port: {port}")
-    app.run(host='0.0.0.0', port=port)
+    port = int(os.environ.get('PORT', 5000))
+    print(f"✅ Запуск сервера на порту: {port}")
+    try:
+        app.run(host='0.0.0.0', port=port)
+    except Exception as e:
+        print(f"❌ Ошибка запуска сервера: {e}")
