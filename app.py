@@ -69,6 +69,10 @@ except Exception as e:
 # Функция проверки на спам
 def check_spam(text):
     try:
+        if not hasattr(check_spam, 'spam_tokenizer') or not hasattr(check_spam, 'spam_model'):
+            print("⚠️ Модель спама не загружена")
+            return {"is_spam": False, "confidence": 0.0}
+            
         inputs = spam_tokenizer(
             text,
             truncation=True,
@@ -90,15 +94,29 @@ def check_spam(text):
             "confidence": confidence
         }
     except Exception as e:
-        send_debug_message(f"[SpamCheck] Ошибка проверки на спам: {e}")
+        print(f"⚠️ Ошибка проверки на спам: {e}")
         return {"is_spam": False, "confidence": 0.0}
 
 # Загрузка остальных моделей
-review_model = load_model(REVIEW_MODEL_PATH)
-review_vectorizer = joblib.load(REVIEW_VECTORIZER_PATH)
-
-sentiment_model = load_model(SENTIMENT_MODEL_PATH)
-sentiment_vectorizer = joblib.load(SENTIMENT_VECTORIZER_PATH)
+try:
+    review_model = load_model(REVIEW_MODEL_PATH)
+    review_vectorizer = joblib.load(REVIEW_VECTORIZER_PATH)
+    sentiment_model = load_model(SENTIMENT_MODEL_PATH)
+    sentiment_vectorizer = joblib.load(SENTIMENT_VECTORIZER_PATH)
+    print("✅ Все модели успешно загружены")
+except Exception as e:
+    print(f"⚠️ Ошибка загрузки моделей: {e}")
+    # Создаем заглушки для функций
+    def is_review(text):
+        return False
+    
+    def is_positive_review(text):
+        return None
+    
+    review_model = None
+    review_vectorizer = None
+    sentiment_model = None
+    sentiment_vectorizer = None
 
 # Инициализация Firebase
 # Загрузка конфигурации из переменной окружения
@@ -551,6 +569,6 @@ def send_test_email():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 10000))
     print(f"✅ Starting server on port: {port}")
     app.run(host='0.0.0.0', port=port)
