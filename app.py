@@ -10,9 +10,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 import json
-import joblib
-import numpy as np
-from pathlib import Path
+
 
 # Глобальные переменные для моделей
 review_model = None
