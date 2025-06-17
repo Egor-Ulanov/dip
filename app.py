@@ -99,64 +99,37 @@ def query_hf_model(model_key, text):
         print(f"Ошибка Hugging Face API ({model_key}): {response.text}")
         return None
 
+ML_SERVER_URL = "https://ec26-91-103-252-33.ngrok-free.app"
+
 def analyze_text(text):
-    # Проверка на спам
-    spam_result = query_hf_model("spam", text)
-    is_spam = False
-    spam_conf = 0.0
-    if isinstance(spam_result, list):
-        for pred in spam_result:
-            if pred.get("label") in ["spam", "LABEL_1"]:
-                is_spam = pred.get("score", 0) > 0.5
-                spam_conf = pred.get("score", 0)
-                break
-
-    # Проверка на токсичность
-    toxic_result = query_hf_model("toxic", text)
-    is_toxic = False
-    toxic_conf = 0.0
-    if isinstance(toxic_result, list):
-        for pred in toxic_result:
-            if pred.get("label") in ["toxic", "LABEL_1"]:
-                is_toxic = pred.get("score", 0) > 0.5
-                toxic_conf = pred.get("score", 0)
-                break
-
-    # Проверка, является ли текст отзывом
-    review_result = query_hf_model("review", text)
-    is_review = False
-    review_conf = 0.0
-    if isinstance(review_result, list):
-        for pred in review_result:
-            if pred.get("label") in ["LABEL_1", "review"]:
-                is_review = pred.get("score", 0) > 0.5
-                review_conf = pred.get("score", 0)
-                break
-
-    # Если это отзыв — проверяем сентимент
-    sentiment = None
-    sentiment_conf = 0.0
-    if is_review:
-        sentiment_result = query_hf_model("sentiment", text)
-        if isinstance(sentiment_result, list):
-            for pred in sentiment_result:
-                if pred.get("label") in ["LABEL_1", "positive"]:
-                    sentiment = "positive"
-                    sentiment_conf = pred.get("score", 0)
-                elif pred.get("label") in ["LABEL_0", "negative"]:
-                    sentiment = "negative"
-                    sentiment_conf = pred.get("score", 0)
-
-    return {
-        "is_spam": is_spam,
-        "spam_confidence": spam_conf,
-        "is_toxic": is_toxic,
-        "toxic_confidence": toxic_conf,
-        "is_review": is_review,
-        "review_confidence": review_conf,
-        "sentiment": sentiment,
-        "sentiment_confidence": sentiment_conf
-    }
+    try:
+        response = requests.post(ML_SERVER_URL, json={"text": text}, timeout=30)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print("Ошибка ML-сервера:", response.text)
+            return {
+                "is_spam": False,
+                "spam_confidence": 0.0,
+                "is_toxic": False,
+                "toxic_confidence": 0.0,
+                "is_review": False,
+                "review_confidence": 0.0,
+                "sentiment": None,
+                "sentiment_confidence": 0.0
+            }
+    except Exception as e:
+        print("Ошибка обращения к ML-серверу:", e)
+        return {
+            "is_spam": False,
+            "spam_confidence": 0.0,
+            "is_toxic": False,
+            "toxic_confidence": 0.0,
+            "is_review": False,
+            "review_confidence": 0.0,
+            "sentiment": None,
+            "sentiment_confidence": 0.0
+        }
 
 @app.before_request
 def before_request_log():
