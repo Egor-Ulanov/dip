@@ -5,53 +5,14 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import requests
 import re
-from functools import lru_cache
 import time
 import os
 import smtplib
 from email.mime.text import MIMEText
 import json
 import joblib
-from tensorflow.keras.models import load_model
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import numpy as np
 from pathlib import Path
-
-# Пути к файлам моделей
-SPAM_MODEL_PATH = "models/rubert_tiny2_final"
-REVIEW_MODEL_PATH = "review_detection_model.keras"
-REVIEW_VECTORIZER_PATH = "review_vectorizer.pkl"
-SENTIMENT_MODEL_PATH = "sentiment_model.keras"
-SENTIMENT_VECTORIZER_PATH = "sentiment_vectorizer.pkl"
-
-# URL для скачивания файлов модели
-MODEL_FILES = {
-    'model.safetensors': os.getenv('MODEL_SAFETENSORS_URL', 'https://drive.google.com/uc?id=10DNdCYaR3-9hLFUKLYvV-8lxVOvNy85u'),
-    'training_args.bin': os.getenv('TRAINING_ARGS_URL', 'https://drive.google.com/uc?id=1d94dXzqmB0UynXh9AysJ-wstPMY-JApO')
-}
-
-def download_model_files():
-    """Скачивает файлы модели, если их нет."""
-    model_dir = Path(SPAM_MODEL_PATH)
-    model_dir.mkdir(parents=True, exist_ok=True)
-    
-    for filename, url in MODEL_FILES.items():
-        file_path = model_dir / filename
-        if not file_path.exists():
-            try:
-                print(f"Скачиваем {filename}...")
-                response = requests.get(url)
-                response.raise_for_status()
-                with open(file_path, 'wb') as f:
-                    f.write(response.content)
-                print(f"Файл {filename} успешно скачан")
-            except Exception as e:
-                print(f"Ошибка при скачивании {filename}: {e}")
-                raise
-
-# Скачиваем файлы модели при запуске
-download_model_files()
 
 # Глобальные переменные для моделей
 review_model = None
@@ -59,19 +20,6 @@ review_vectorizer = None
 sentiment_model = None
 sentiment_vectorizer = None
 db = None
-
-def load_models():
-    global review_model, review_vectorizer, sentiment_model, sentiment_vectorizer
-    if review_model is None:
-        try:
-            print("🔄 Загрузка моделей...")
-            review_model = load_model(REVIEW_MODEL_PATH)
-            review_vectorizer = joblib.load(REVIEW_VECTORIZER_PATH)
-            sentiment_model = load_model(SENTIMENT_MODEL_PATH)
-            sentiment_vectorizer = joblib.load(SENTIMENT_VECTORIZER_PATH)
-            print("✅ Все модели успешно загружены")
-        except Exception as e:
-            print(f"⚠️ Ошибка загрузки моделей: {e}")
 
 def init_firebase():
     global db
@@ -92,78 +40,88 @@ CORS(app)
 
 @app.before_request
 def before_request():
-    load_models()
     init_firebase()
 
-# Токен API Hugging Face
+# Названия моделей на Hugging Face
+HF_MODELS = {
+    "spam": "EgorU/rubert_spam_final",
+    "toxic": "EgorU/rubert_toxic_model",
+    "review": "EgorU/rubert_review_final",
+    "sentiment": "EgorU/rubert_sentiment_model"
+}
+
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
-# Функция для вызова Hugging Face Inference API
-def query_huggingface_api(text):
-    headers = {
-        "Authorization": f"Bearer {HF_API_TOKEN}"
-    }
-    api_url = "https://api-inference.huggingface.co/models/SkolkovoInstitute/russian_toxicity_classifier"
-
+def query_hf_model(model_key, text):
+    api_url = f"https://api-inference.huggingface.co/models/{HF_MODELS[model_key]}"
+    headers = {"Authorization": f"Bearer {HF_API_TOKEN}"} if HF_API_TOKEN else {}
     response = requests.post(api_url, headers=headers, json={"inputs": text})
     if response.status_code == 200:
-        try:
-            result = response.json()
-            print("Ответ Hugging Face API:", result)  # Отладочный вывод
-
-            # Проверяем, является ли результат вложенным списком
-            if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
-                result = result[0]  # Убираем вложенность
-
-            # Убедимся, что результат — список словарей
-            if isinstance(result, list) and all(isinstance(item, dict) for item in result):
-                return result
-            else:
-                raise ValueError("Неверный формат данных от API")
-        except ValueError as e:
-            print(f"Ошибка: {str(e)}")
-            return [{"label": "error", "score": 0.0}]  # Возвращаем заглушку для обработки ошибки
+        return response.json()
     elif response.status_code == 503:
-        return [{"label": "loading", "score": 0.0}]  # Если модель загружается
+        return "loading"
     else:
-        print(f"Ошибка API Hugging Face: {response.text}")
-        return [{"label": "error", "score": 0.0}]  # Возвращаем заглушку
+        print(f"Ошибка Hugging Face API ({model_key}): {response.text}")
+        return None
 
-DEBUG_CHAT_ID = "-4661677635"  # ID твоего личного чата или тестовой группы
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+def analyze_text(text):
+    # Проверка на спам
+    spam_result = query_hf_model("spam", text)
+    is_spam = False
+    spam_conf = 0.0
+    if isinstance(spam_result, list):
+        for pred in spam_result:
+            if pred.get("label") in ["spam", "LABEL_1"]:
+                is_spam = pred.get("score", 0) > 0.5
+                spam_conf = pred.get("score", 0)
+                break
 
-def send_debug_message(text):
-    if not TELEGRAM_TOKEN or not DEBUG_CHAT_ID:
-        return
-    try:
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json={
-            "chat_id": DEBUG_CHAT_ID,
-            "text": f"[DEBUG]\n{text}",
-            "parse_mode": "Markdown"
-        })
-        time.sleep(0.3)  # 👈 не даём отправлять слишком быстро
-    except Exception as e:
-        print("Ошибка при отправке debug-сообщения:", e)
+    # Проверка на токсичность
+    toxic_result = query_hf_model("toxic", text)
+    is_toxic = False
+    toxic_conf = 0.0
+    if isinstance(toxic_result, list):
+        for pred in toxic_result:
+            if pred.get("label") in ["toxic", "LABEL_1"]:
+                is_toxic = pred.get("score", 0) > 0.5
+                toxic_conf = pred.get("score", 0)
+                break
 
-def send_email(to_email, subject, body):
-    smtp_server = "smtp.gmail.com"
-    smtp_port = 587
-    from_email = "egorulanov908@gmail.com"  # поменяй на свою почту
-    password = os.getenv("EMAIL_PASSWORD")  # храни пароль в переменной окружения!
+    # Проверка, является ли текст отзывом
+    review_result = query_hf_model("review", text)
+    is_review = False
+    review_conf = 0.0
+    if isinstance(review_result, list):
+        for pred in review_result:
+            if pred.get("label") in ["LABEL_1", "review"]:
+                is_review = pred.get("score", 0) > 0.5
+                review_conf = pred.get("score", 0)
+                break
 
-    msg = MIMEText(body, "plain", "utf-8")
-    msg["Subject"] = subject
-    msg["From"] = from_email
-    msg["To"] = to_email
+    # Если это отзыв — проверяем сентимент
+    sentiment = None
+    sentiment_conf = 0.0
+    if is_review:
+        sentiment_result = query_hf_model("sentiment", text)
+        if isinstance(sentiment_result, list):
+            for pred in sentiment_result:
+                if pred.get("label") in ["LABEL_1", "positive"]:
+                    sentiment = "positive"
+                    sentiment_conf = pred.get("score", 0)
+                elif pred.get("label") in ["LABEL_0", "negative"]:
+                    sentiment = "negative"
+                    sentiment_conf = pred.get("score", 0)
 
-    try:
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-        server.login(from_email, password)
-        server.sendmail(from_email, to_email, msg.as_string())
-        server.quit()
-    except Exception as e:
-        send_debug_message(f"[Email] Ошибка отправки: {e}")
+    return {
+        "is_spam": is_spam,
+        "spam_confidence": spam_conf,
+        "is_toxic": is_toxic,
+        "toxic_confidence": toxic_conf,
+        "is_review": is_review,
+        "review_confidence": review_conf,
+        "sentiment": sentiment,
+        "sentiment_confidence": sentiment_conf
+    }
 
 @app.before_request
 def before_request_log():
@@ -181,41 +139,16 @@ def check_text():
     try:
         data = request.get_json()
         text = data.get('text')
-        email = data.get('email')  # Получаем email из запроса
+        email = data.get('email')
         print(f"Полученный текст: {text}")
         print(f"Email пользователя: {email}")
 
-        # Разбиваем текст на предложения
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        results = []
-        violations = []
-
-        is_safe = True  # По умолчанию текст безопасен
-
-        for sentence in sentences:
-            # Проверка каждого предложения через Hugging Face
-            hf_result = query_huggingface_api(sentence)
-
-            # Убедимся, что hf_result — это список словарей
-            if not isinstance(hf_result, list) or not all(isinstance(pred, dict) for pred in hf_result):
-                hf_result = [{"label": "error", "score": 0.0}]  # Заглушка в случае ошибки
-
-            # Проверяем, является ли предложение токсичным
-            is_toxic = any(pred["label"] == "toxic" and pred["score"] > 0.5 for pred in hf_result)
-            if is_toxic:
-                is_safe = False
-                violations.append(sentence)
-
-            results.append({
-                "sentence": sentence,
-                "is_toxic": is_toxic,
-                "predictions": hf_result
-            })
-
+        # Можно разбивать на предложения, если нужно, но здесь анализируем весь текст
+        result = analyze_text(text)
         result_summary = {
-            "is_safe": is_safe,
-            "violations": violations,
-            "results": results
+            "is_safe": not (result["is_spam"] or result["is_toxic"]),
+            "violations": [k for k in ["spam", "toxic"] if result[f"is_{k}"]],
+            "results": result
         }
 
         # Сохраняем в Firestore с добавлением email пользователя
@@ -275,36 +208,13 @@ def check_url():
         soup = BeautifulSoup(response.text, 'html.parser')
         text = soup.get_text(separator=' ')
 
-        # Анализируем текст (вызываем Hugging Face API)
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        results = []
-        violations = []
-        is_safe = True
-
-        for sentence in sentences:
-            hf_result = query_huggingface_api(sentence)
-
-            # Убедимся, что hf_result корректен
-            if not isinstance(hf_result, list) or not all(isinstance(pred, dict) for pred in hf_result):
-                hf_result = [{"label": "error", "score": 0.0}]
-
-            is_toxic = any(pred["label"] == "toxic" and pred["score"] > 0.5 for pred in hf_result)
-            if is_toxic:
-                is_safe = False
-                violations.append(sentence)
-
-            results.append({
-                "sentence": sentence,
-                "is_toxic": is_toxic,
-                "predictions": hf_result
-            })
-
-        # Формируем результат анализа
+        # Можно разбивать на предложения, если нужно, но здесь анализируем весь текст
+        result = analyze_text(text)
         result_summary = {
             "url": url,
-            "is_safe": is_safe,
-            "violations": violations,
-            "results": results
+            "is_safe": not (result["is_spam"] or result["is_toxic"]),
+            "violations": [k for k in ["spam", "toxic"] if result[f"is_{k}"]],
+            "results": result
         }
 
         # Сохраняем результат анализа в Firestore
@@ -375,7 +285,7 @@ def telegram_webhook():
             return jsonify({"status": "no admin email"}), 200
 
         # Проверка на спам
-        spam_check = check_spam(user_text)
+        spam_check = analyze_text(user_text)
         
         # Проверка токсичности
         sentences = re.split(r'(?<=[.!?])\s+', user_text)
@@ -384,7 +294,7 @@ def telegram_webhook():
         results = []
 
         for sentence in sentences:
-            hf_result = query_huggingface_api(sentence)
+            hf_result = query_hf_model("toxic", sentence)
             if not isinstance(hf_result, list):
                 hf_result = [{"label": "error", "score": 0.0}]
             is_toxic = any(pred.get("label") == "toxic" and pred.get("score", 0) > 0.5 for pred in hf_result)
@@ -398,9 +308,9 @@ def telegram_webhook():
             })
 
         # Проверка, является ли сообщение отзывом
-        review_flag = is_review(user_text)
+        review_flag = analyze_text(user_text)["is_review"]
         if review_flag:
-            sentiment_flag = is_positive_review(user_text)
+            sentiment_flag = analyze_text(user_text)["sentiment"]
         
         # send_debug_message(f"📦 checks: {user_text, results}")
         # Сохраняем результат
@@ -428,7 +338,7 @@ def telegram_webhook():
                     f"Текст: {user_text}\n\n"
                     f"Токсичность: {'Обнаружена' if not is_safe else 'Не обнаружена'}\n"
                     f"Спам: {'Обнаружен' if spam_check['is_spam'] else 'Не обнаружен'}\n"
-                    f"Уверенность (спам): {spam_check['confidence']:.2%}\n"
+                    f"Уверенность (спам): {spam_check['spam_confidence']:.2%}\n"
                     f"Нарушения: {violations_text}"
                 )
                 send_email(admin_email, "⚠️ Обнаружено проблемное сообщение", email_body)
