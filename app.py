@@ -241,6 +241,24 @@ def check_url():
 # простая временная защита по message_id
 recent_messages = set()
 
+def detect_master(text):
+    osokin_variants = [
+        r"осокин(а|у|ом|е|ой)?", r"александр(а|у|ом|е|ом|ой)?", r"владимирович(а|у|ем|е)?",
+        r"саша", r"саня", r"осокин а\.в\.", r"а\.в\. осокин"
+    ]
+    ivanov_variants = [
+        r"иванов(а|у|ым|е|ой)?", r"виктор(а|у|ом|е|ом|ой)?", r"петрович(а|у|ем|е)?",
+        r"виктор петрович", r"иванов в\.п\.", r"в\.п\. иванов"
+    ]
+    text_lower = text.lower()
+    for pattern in osokin_variants:
+        if re.search(pattern, text_lower):
+            return "Осокин А.В."
+    for pattern in ivanov_variants:
+        if re.search(pattern, text_lower):
+            return "Иванов В.П."
+    return None
+
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
     try:
@@ -266,6 +284,7 @@ def telegram_webhook():
         user_id = from_user.get('id')
         author = f"{from_user.get('first_name', '')}_{from_user.get('last_name', '')}_{user_id}".strip("_")
         user_text = message.get('text', '')
+        master = detect_master(user_text)
 
         # send_debug_message(f"✅ Webhook получен от {author} в группе {group_title}\nТекст: {user_text}")
 
@@ -331,6 +350,7 @@ def telegram_webhook():
                     'violations': violations,
                     'results': results # Теперь 'results' содержит полный анализ текста
                 },
+                'master': master,
                 'date': datetime.now()
             })
 
