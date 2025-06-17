@@ -19,6 +19,43 @@ sentiment_model = None
 sentiment_vectorizer = None
 db = None
 
+# DEBUG и Email функции
+DEBUG_CHAT_ID = os.getenv("DEBUG_CHAT_ID", "-4661677635") # ID твоего личного чата или тестовой группы
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+def send_debug_message(text):
+    if not TELEGRAM_TOKEN or not DEBUG_CHAT_ID:
+        return
+    try:
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json={
+            "chat_id": DEBUG_CHAT_ID,
+            "text": f"[DEBUG]\n{text}",
+            "parse_mode": "Markdown"
+        })
+        time.sleep(0.3) # не даём отправлять слишком быстро
+    except Exception as e:
+        print("Ошибка при отправке debug-сообщения:", e)
+
+def send_email(to_email, subject, body):
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+    from_email = os.getenv("EMAIL_USERNAME", "egorulanov908@gmail.com") # поменяй на свою почту или используй ENV
+    password = os.getenv("EMAIL_PASSWORD") # храни пароль в переменной окружения!
+
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = to_email
+
+    try:
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(from_email, password)
+        server.sendmail(from_email, to_email, msg.as_string())
+        server.quit()
+    except Exception as e:
+        send_debug_message(f"[Email] Ошибка отправки: {e}")
+
 def init_firebase():
     global db
     if db is None:
@@ -257,7 +294,6 @@ def telegram_webhook():
         author = f"{from_user.get('first_name', '')}_{from_user.get('last_name', '')}_{user_id}".strip("_")
         user_text = message.get('text', '')
 
-
         # send_debug_message(f"✅ Webhook получен от {author} в группе {group_title}\nТекст: {user_text}")
 
         if user_text.strip() == "/getid":
@@ -286,29 +322,27 @@ def telegram_webhook():
         spam_check = analyze_text(user_text)
         
         # Проверка токсичности
-        sentences = re.split(r'(?<=[.!?])\s+', user_text)
-        is_safe = True
+        # В этом блоке мы переиспользуем analyze_text, но результат уже комплексный, не нужно разбивать на предложения
+        # sentences = re.split(r'(?<=[.!?])\s+', user_text)
+        # is_safe и violations будут вычислены на основе spam_check и toxic_check из analyze_text
+        
+        is_safe = not (spam_check["is_spam"] or spam_check["is_toxic"])
         violations = []
-        results = []
+        if spam_check["is_spam"]:
+            violations.append("Спам")
+        if spam_check["is_toxic"]:
+            violations.append("Токсичность")
 
-        for sentence in sentences:
-            hf_result = query_hf_model("toxic", sentence)
-            if not isinstance(hf_result, list):
-                hf_result = [{"label": "error", "score": 0.0}]
-            is_toxic = any(pred.get("label") == "toxic" and pred.get("score", 0) > 0.5 for pred in hf_result)
-            if is_toxic:
-                is_safe = False
-                violations.append(sentence)
-            results.append({
-                "sentence": sentence,
-                "is_toxic": is_toxic,
-                "predictions": hf_result
-            })
+        # Результаты для отдельных предложений, если нужно. Пока оставлю так.
+        results = {
+            "text_analysis": spam_check # Используем общий результат analyze_text
+        }
 
-        # Проверка, является ли сообщение отзывом
-        review_flag = analyze_text(user_text)["is_review"]
+        # Проверка, является ли сообщение отзывом и сентимент
+        review_flag = spam_check["is_review"] # Используем результат analyze_text
+        sentiment_flag = None # Инициализируем значением по умолчанию
         if review_flag:
-            sentiment_flag = analyze_text(user_text)["sentiment"]
+            sentiment_flag = spam_check["sentiment"] # Используем результат analyze_text
         
         # send_debug_message(f"📦 checks: {user_text, results}")
         # Сохраняем результат
@@ -322,7 +356,7 @@ def telegram_webhook():
                 'result': {
                     'is_safe': is_safe,
                     'violations': violations,
-                    'results': results
+                    'results': results # Теперь 'results' содержит полный анализ текста
                 },
                 'date': datetime.now()
             })
