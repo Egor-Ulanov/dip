@@ -319,33 +319,39 @@ def telegram_webhook():
             send_debug_message(f"⚠️ У группы {group_title} нет admin_email.")
             return jsonify({"status": "no admin email"}), 200
 
-        # Проверка на спам
-        spam_check = analyze_text(user_text)
-        
-        # Проверка токсичности
-        # В этом блоке мы переиспользуем analyze_text, но результат уже комплексный, не нужно разбивать на предложения
-        # sentences = re.split(r'(?<=[.!?])\s+', user_text)
-        # is_safe и violations будут вычислены на основе spam_check и toxic_check из analyze_text
-        
-        is_safe = not (spam_check["is_spam"] or spam_check["is_toxic"])
+        # Новый подход: разбиваем на предложения и анализируем каждое
+        sentences = re.split(r'(?<=[.!?])\s+', user_text.strip())
+        results = []
+        for sent in sentences:
+            if not sent.strip():
+                continue
+            result = analyze_text(sent)
+            result_summary = {
+                "text": sent,
+                "is_safe": not (result["is_spam"] or result["is_toxic"]),
+                "violations": [k for k in ["Спам", "Токсичность"] if (k == "Спам" and result["is_spam"]) or (k == "Токсичность" and result["is_toxic"])],
+                "results": result,
+                "is_review": result.get("is_review", False),
+                "sentiment": result.get("sentiment", None)
+            }
+            results.append(result_summary)
+
+        # Вся проверка считается нарушающей, если хотя бы одно предложение с нарушением
+        has_violation = any(sent["violations"] for sent in results)
+        is_safe = not has_violation
         violations = []
-        if spam_check["is_spam"]:
-            violations.append("Спам")
-        if spam_check["is_toxic"]:
-            violations.append("Токсичность")
+        for sent in results:
+            violations.extend(sent["violations"])
+        violations = list(set(violations))
+        # Для отзывов: если хотя бы одно предложение is_review
+        review_flag = any(sent.get("is_review", False) for sent in results)
+        # Для сентимента: если есть предложения с sentiment, можно взять по большинству или первому
+        sentiment_flag = None
+        sentiments = [sent.get("sentiment") for sent in results if sent.get("sentiment")]
+        if sentiments:
+            # Можно взять первый или посчитать по большинству
+            sentiment_flag = max(set(sentiments), key=sentiments.count)
 
-        # Результаты для отдельных предложений, если нужно. Пока оставлю так.
-        results = {
-            "text_analysis": spam_check # Используем общий результат analyze_text
-        }
-
-        # Проверка, является ли сообщение отзывом и сентимент
-        review_flag = spam_check["is_review"] # Используем результат analyze_text
-        sentiment_flag = None # Инициализируем значением по умолчанию
-        if review_flag:
-            sentiment_flag = spam_check["sentiment"] # Используем результат analyze_text
-        
-        # send_debug_message(f"📦 checks: {user_text, results}")
         # Сохраняем результат
         try:
             db.collection('groups').document(group_id).collection('checks').document().set({
@@ -353,26 +359,25 @@ def telegram_webhook():
                 'author': author,
                 'review': review_flag,
                 'sentiment': sentiment_flag,
-                'spam_check': spam_check,  # Добавляем результат проверки на спам
+                'sentences': results,
                 'result': {
                     'is_safe': is_safe,
                     'violations': violations,
-                    'results': results # Теперь 'results' содержит полный анализ текста
+                    'results': results
                 },
                 'master': master,
                 'date': datetime.now()
             })
 
-            if not is_safe or spam_check['is_spam']:
+            if not is_safe or ("Спам" in violations):
                 violations_text = ', '.join(violations) if violations else 'нет'
                 email_body = (
                     f"В Telegram-группе «{group_title}» ({group_id}) "
                     f"обнаружено проблемное сообщение:\n\n"
                     f"Автор: {author}\n"
                     f"Текст: {user_text}\n\n"
-                    f"Токсичность: {'Обнаружена' if not is_safe else 'Не обнаружена'}\n"
-                    f"Спам: {'Обнаружен' if spam_check['is_spam'] else 'Не обнаружен'}\n"
-                    f"Уверенность (спам): {spam_check['spam_confidence']:.2%}\n"
+                    f"Токсичность: {'Обнаружена' if 'Токсичность' in violations else 'Не обнаружена'}\n"
+                    f"Спам: {'Обнаружен' if 'Спам' in violations else 'Не обнаружен'}\n"
                     f"Нарушения: {violations_text}"
                 )
                 send_email(admin_email, "⚠️ Обнаружено проблемное сообщение", email_body)
