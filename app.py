@@ -373,11 +373,12 @@ def telegram_webhook():
             if ("Спам" in violations or "Токсичность" in violations):
                 violations_text = ', '.join(violations) if violations else 'нет'
                 email_body = (
-                    f"В Telegram-группе «{group_title}» ({group_id}) обнаружено подозрительное сообщение:\n\n"
+                    f"Здравствуйте, в вашей Telegram-группе «{group_title}» ({group_id}) обнаружено подозрительное сообщение:\n\n"
                     f"Автор: {author}\n"
                     f"Текст: {user_text}\n"
                     f"Тип нарушения: {violations_text}\n"
                     f"Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"С уважением, ваша система мониторинга TextShield."
                 )
                 send_email(admin_email, "⚠️ Обнаружено подозрительное сообщение", email_body)
 
