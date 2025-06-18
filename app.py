@@ -369,18 +369,17 @@ def telegram_webhook():
                 'date': datetime.now()
             })
 
-            if not is_safe or ("Спам" in violations):
+            # Отправляем email только если есть токсичность или спам
+            if ("Спам" in violations or "Токсичность" in violations):
                 violations_text = ', '.join(violations) if violations else 'нет'
                 email_body = (
-                    f"В Telegram-группе «{group_title}» ({group_id}) "
-                    f"обнаружено проблемное сообщение:\n\n"
+                    f"В Telegram-группе «{group_title}» ({group_id}) обнаружено подозрительное сообщение:\n\n"
                     f"Автор: {author}\n"
-                    f"Текст: {user_text}\n\n"
-                    f"Токсичность: {'Обнаружена' if 'Токсичность' in violations else 'Не обнаружена'}\n"
-                    f"Спам: {'Обнаружен' if 'Спам' in violations else 'Не обнаружен'}\n"
-                    f"Нарушения: {violations_text}"
+                    f"Текст: {user_text}\n"
+                    f"Тип нарушения: {violations_text}\n"
+                    f"Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                 )
-                send_email(admin_email, "⚠️ Обнаружено проблемное сообщение", email_body)
+                send_email(admin_email, "⚠️ Обнаружено подозрительное сообщение", email_body)
 
         except Exception as e:
             send_debug_message(f"❌ Ошибка при сохранении в Firestore: {e}")
