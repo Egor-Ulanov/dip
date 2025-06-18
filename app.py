@@ -166,13 +166,15 @@ def check_text():
                 "is_review": result.get("is_review", False),
                 "sentiment": result.get("sentiment", None)
             }
-            db.collection('checks').add({
-                'text': sent,
-                'email': email,
-                'result': result_summary,
-                'date': datetime.now()
-            })
             results.append(result_summary)
+
+        # Сохраняем одну запись на весь текст
+        db.collection('checks').add({
+            'text': text,
+            'email': email,
+            'sentences': results,
+            'date': datetime.now()
+        })
 
         return jsonify({"sentences": results})
     except Exception as e:
