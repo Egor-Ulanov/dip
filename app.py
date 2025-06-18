@@ -151,23 +151,30 @@ def check_text():
         print(f"Полученный текст: {text}")
         print(f"Email пользователя: {email}")
 
-        # Можно разбивать на предложения, если нужно, но здесь анализируем весь текст
-        result = analyze_text(text)
-        result_summary = {
-            "is_safe": not (result["is_spam"] or result["is_toxic"]),
-            "violations": [k for k in ["spam", "toxic"] if result[f"is_{k}"]],
-            "results": result
-        }
+        # Разбиваем текст на предложения
+        sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+        results = []
+        for sent in sentences:
+            if not sent.strip():
+                continue
+            result = analyze_text(sent)
+            result_summary = {
+                "text": sent,
+                "is_safe": not (result["is_spam"] or result["is_toxic"]),
+                "violations": [k for k in ["Спам", "Токсичность"] if (k == "Спам" and result["is_spam"]) or (k == "Токсичность" and result["is_toxic"])],
+                "results": result,
+                "is_review": result.get("is_review", False),
+                "sentiment": result.get("sentiment", None)
+            }
+            db.collection('checks').add({
+                'text': sent,
+                'email': email,
+                'result': result_summary,
+                'date': datetime.now()
+            })
+            results.append(result_summary)
 
-        # Сохраняем в Firestore с добавлением email пользователя
-        db.collection('checks').add({
-            'text': text,
-            'email': email,  # Сохраняем email
-            'result': result_summary,
-            'date': datetime.now()
-        })
-
-        return jsonify(result_summary)
+        return jsonify({"sentences": results})
     except Exception as e:
         print(f"Ошибка: {str(e)}")
         return jsonify({"error": str(e)}), 500
