@@ -60,15 +60,15 @@ def init_firebase():
     global db
     if db is None:
         try:
-            print("🔄 Инициализация Firebase...")
+            print(" Инициализация Firebase...")
             firebase_config = os.getenv("FIREBASE_CONFIG")
             credentials_info = json.loads(firebase_config)
             cred = credentials.Certificate(credentials_info)
             initialize_app(cred)
             db = firestore.client()
-            print("✅ Firebase успешно инициализирован")
+            print(" Firebase успешно инициализирован")
         except Exception as e:
-            print(f"⚠️ Ошибка инициализации Firebase: {e}")
+            print(f" Ошибка инициализации Firebase: {e}")
 
 app = Flask(__name__)
 CORS(app)
@@ -99,7 +99,7 @@ def query_hf_model(model_key, text):
         print(f"Ошибка Hugging Face API ({model_key}): {response.text}")
         return None
 
-ML_SERVER_URL = "https://0125-91-103-252-33.ngrok-free.app/analyze"
+ML_SERVER_URL = "https://cba0-91-103-252-33.ngrok-free.app/analyze"
 
 def analyze_text(text):
     try:
@@ -275,12 +275,12 @@ def telegram_webhook():
         message = data.get('message')
 
         if not message:
-            send_debug_message("❌ Нет message в payload!")
+            send_debug_message(" Нет message в payload!")
             return jsonify({"status": "no message"}), 200
 
         message_id = message.get('message_id')
         if message_id in recent_messages:
-            send_debug_message(f"⚠️ Дубликат message_id: {message_id}")
+            send_debug_message(f" Дубликат message_id: {message_id}")
             return jsonify({"status": "duplicate"}), 200
         if message_id:
             recent_messages.add(message_id)
@@ -295,7 +295,7 @@ def telegram_webhook():
         user_text = message.get('text', '')
         master = detect_master(user_text)
 
-        # send_debug_message(f"✅ Webhook получен от {author} в группе {group_title}\nТекст: {user_text}")
+        # send_debug_message(f" Webhook получен от {author} в группе {group_title}\nТекст: {user_text}")
 
         if user_text.strip() == "/getid":
             telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -310,13 +310,13 @@ def telegram_webhook():
         # Проверка регистрации группы
         group_doc = db.collection('groups').document(group_id).get()
         if not group_doc.exists:
-            send_debug_message(f"⚠️ Группа {group_title} не зарегистрирована.")
+            send_debug_message(f" Группа {group_title} не зарегистрирована.")
             return jsonify({"status": "group not registered"}), 200
 
         group_data = group_doc.to_dict() or {}
         admin_email = group_data.get('info', {}).get('admin_email')
         if not admin_email:
-            send_debug_message(f"⚠️ У группы {group_title} нет admin_email.")
+            send_debug_message(f" У группы {group_title} нет admin_email.")
             return jsonify({"status": "no admin email"}), 200
 
         # Новый подход: разбиваем на предложения и анализируем каждое
@@ -380,38 +380,16 @@ def telegram_webhook():
                     f"Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                     f"С уважением, ваша система мониторинга TextShield."
                 )
-                send_email(admin_email, "⚠️ Обнаружено подозрительное сообщение", email_body)
+                send_email(admin_email, " Обнаружено подозрительное сообщение", email_body)
 
         except Exception as e:
-            send_debug_message(f"❌ Ошибка при сохранении в Firestore: {e}")
+            send_debug_message(f" Ошибка при сохранении в Firestore: {e}")
 
         return jsonify({"status": "ok"}), 200
 
     except Exception as e:
-        error_msg = f"❌ Ошибка в webhook: {str(e)}"
+        error_msg = f" Ошибка в webhook: {str(e)}"
         send_debug_message(error_msg)
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/test-webhook', methods=['POST'])
-def test_webhook():
-    try:
-        data = request.get_json()
-        message = data.get('message')
-        if not message:
-            return jsonify({"status": "no message"}), 200
-
-        chat = message['chat']
-        user_text = message.get('text', '')
-        chat_id = str(chat.get('id', 'unknown'))
-
-        # Просто пишем в фиксированную коллекцию без проверок
-        db.collection('groups').document("test").collection('checks').add({
-            'text': user_text,
-            'date': datetime.now()
-        })
-
-        return jsonify({"status": "saved"}), 200
-    except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/upload-image', methods=['POST'])
@@ -441,26 +419,10 @@ def upload_image():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/send-test-email', methods=['GET'])
-def send_test_email():
-    test_email = request.args.get('to')
-    if not test_email:
-        return jsonify({"error": "Укажи ?to=example@mail.com в запросе"}), 400
-
-    try:
-        send_email(
-            test_email,
-            "Тестовое письмо от Flask",
-            "Если ты это читаешь — отправка работает! ✅"
-        )
-        return jsonify({"status": f"Письмо отправлено на {test_email}"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"✅ Запуск сервера на порту: {port}")
+    print(f" Запуск сервера на порту: {port}")
     try:
         app.run(host='0.0.0.0', port=port)
     except Exception as e:
-        print(f"❌ Ошибка запуска сервера: {e}")
+        print(f" Ошибка запуска сервера: {e}")
