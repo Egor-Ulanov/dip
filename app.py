@@ -99,7 +99,7 @@ def query_hf_model(model_key, text):
         print(f"Ошибка Hugging Face API ({model_key}): {response.text}")
         return None
 
-ML_SERVER_URL = "https://cba0-91-103-252-33.ngrok-free.app/analyze"
+ML_SERVER_URL = "https://ca72-91-103-252-33.ngrok-free.app/analyze"
 
 def analyze_text(text):
     try:
